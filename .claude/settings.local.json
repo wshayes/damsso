@@ -1,7 +1,11 @@
 {
   "permissions": {
     "allow": [
-      "Bash(uv init:*)"
+      "Bash(uv init:*)",
+      "Bash(mkdir:*)",
+      "Bash(uv pip install:*)",
+      "Bash(python -m pytest:*)",
+      "Bash(python:*)"
     ],
     "deny": [],
     "ask": []

@@ -38,6 +38,34 @@ Documentation = "https://github.com/yourusername/django-allauth-multitenant-sso#
 Repository = "https://github.com/yourusername/django-allauth-multitenant-sso"
 Issues = "https://github.com/yourusername/django-allauth-multitenant-sso/issues"
 
+[project.optional-dependencies]
+test = [
+    "pytest>=7.4.0",
+    "pytest-django>=4.5.0",
+    "pytest-cov>=4.1.0",
+    "responses>=0.23.0",
+]
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[tool.pytest.ini_options]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+testpaths = ["tests"]
+addopts = "-v --tb=short"
+
+[tool.coverage.run]
+source = ["src/django_allauth_multitenant_sso"]
+omit = ["*/tests/*", "*/migrations/*"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+]
