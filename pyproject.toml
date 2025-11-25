@@ -33,10 +33,10 @@ classifiers = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/yourusername/django-allauth-multitenant-sso"
-Documentation = "https://github.com/yourusername/django-allauth-multitenant-sso#readme"
-Repository = "https://github.com/yourusername/django-allauth-multitenant-sso"
-Issues = "https://github.com/yourusername/django-allauth-multitenant-sso/issues"
+Homepage = "https://github.com/wshayes/django-allauth-multitenant-sso"
+Documentation = "https://wshayes.github.io/django-allauth-multitenant-sso/"
+Repository = "https://github.com/wshayes/django-allauth-multitenant-sso"
+Issues = "https://github.com/wshayes/django-allauth-multitenant-sso/issues"
 
 [project.optional-dependencies]
 test = [
@@ -44,6 +44,11 @@ test = [
     "pytest-django>=4.5.0",
     "pytest-cov>=4.1.0",
     "responses>=0.23.0",
+]
+docs = [
+    "mkdocs>=1.5.0",
+    "mkdocs-material>=9.5.0",
+    "pymdown-extensions>=10.0.0",
 ]
 
 [build-system]

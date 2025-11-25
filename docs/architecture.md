@@ -21,7 +21,7 @@ django-allauth-multitenant-sso/
 │       ├── forms.py                    # Django forms
 │       ├── decorators.py               # Access control decorators
 │       ├── migrations/                 # Database migrations
-│       └── templates/                  # HTML templates (to be added)
+│       └── templates/                  # HTML templates
 ├── example/                            # Example Django project
 │   ├── manage.py
 │   └── demo/
@@ -43,7 +43,7 @@ django-allauth-multitenant-sso/
 
 #### Tenant
 - Represents an organization with its own SSO configuration
-- Fields: name, slug, domain, sso_enabled, sso_enforced
+- Fields: name, slug, domain, sso_enabled, sso_enforced, signup_token
 - Relations: Has many TenantUsers, SSOProviders, TenantInvitations
 
 #### TenantUser
@@ -69,6 +69,7 @@ django-allauth-multitenant-sso/
 - Extends django-allauth's DefaultAccountAdapter
 - Enforces SSO when required by tenant
 - Handles invitation-based signup
+- Handles tenant-specific signup URLs
 - Manages tenant-specific redirects
 
 #### MultiTenantSocialAccountAdapter
@@ -110,6 +111,7 @@ django-allauth-multitenant-sso/
 - `test_sso_provider()` - Test SSO config
 - `toggle_sso()` - Enable/disable/enforce SSO
 - `invite_user()` - Send invitations
+- `tenant_signup()` - Handle tenant-specific signup URLs
 
 #### Invitation Views
 - `accept_invitation()` - Accept tenant invite
@@ -156,6 +158,13 @@ django-allauth-multitenant-sso/
 7. Extracts user attributes
 8. Creates/updates User and TenantUser records
 9. Logs user in and sets tenant context
+
+### Tenant-Specific Signup
+1. User visits `/tenants/signup/<token>/`
+2. System validates token and stores in session
+3. User is redirected to signup page
+4. After signup, `MultiTenantAccountAdapter.save_user()` creates TenantUser membership
+5. User is logged in and redirected to tenant dashboard
 
 ## Multi-Tenant Isolation
 
@@ -270,7 +279,7 @@ django-allauth-multitenant-sso/
 ## Future Enhancements
 
 ### Planned Features
-- [ ] Email notifications for invitations
+- [ ] Email notifications for invitations (implemented)
 - [ ] Audit logging for SSO events
 - [ ] Multi-factor authentication support
 - [ ] Custom domain SSO discovery
@@ -305,4 +314,4 @@ django-allauth-multitenant-sso/
 
 ## Contributing
 
-See README.md for contribution guidelines.
+See the [Contributing Guide](https://github.com/wshayes/django-allauth-multitenant-sso/blob/main/CONTRIBUTING.md) for contribution guidelines.

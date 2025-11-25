@@ -58,6 +58,9 @@ coverage.xml
 *.cover
 .hypothesis/
 .pytest_cache/
+htmlcov/
+.ruff_cache/
+.mypy_cache/
 
 # Secrets
 *.pem
@@ -65,3 +68,7 @@ coverage.xml
 .env
 .env.local
 secrets.json
+
+# MkDocs
+site/
+.mkdocs_cache/

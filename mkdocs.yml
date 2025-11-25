@@ -1,0 +1,80 @@
+site_name: Django Allauth Multi-Tenant SSO
+site_description: A Django-allauth extension that provides dynamic multi-tenant SSO support using OIDC and SAML
+site_url: https://wshayes.github.io/django-allauth-multitenant-sso/
+repo_url: https://github.com/wshayes/django-allauth-multitenant-sso
+repo_name: wshayes/django-allauth-multitenant-sso
+edit_uri: edit/main/docs/
+
+theme:
+  name: material
+  palette:
+    # Light mode
+    - scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    # Dark mode
+    - scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - search.suggest
+    - search.highlight
+    - content.code.annotate
+    - content.code.copy
+    - content.tabs.link
+
+markdown_extensions:
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+  - admonition
+  - pymdownx.details
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - attr_list
+  - md_in_html
+  - toc:
+      permalink: true
+
+nav:
+  - Home: index.md
+  - Getting Started:
+      - Quick Start: quickstart.md
+  - Guides:
+      - Usage Guide: usage.md
+      - Configuration: configuration.md
+      - Email Configuration: email-configuration.md
+      - Admin Guide: admin-guide.md
+  - Reference:
+      - Models: models.md
+      - API Reference: api-reference.md
+      - Management Commands: management-commands.md
+  - Advanced:
+      - Architecture: architecture.md
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/wshayes/django-allauth-multitenant-sso
+    - icon: fontawesome/brands/python
+      link: https://pypi.org/project/django-allauth-multitenant-sso/
+
+copyright: Copyright &copy; 2024 William Hayes

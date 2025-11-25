@@ -53,9 +53,8 @@ AUTHENTICATION_BACKENDS = [
 SITE_ID = 1
 
 # Allauth settings
-ACCOUNT_AUTHENTICATION_METHOD = 'email'
-ACCOUNT_EMAIL_REQUIRED = True
-ACCOUNT_USERNAME_REQUIRED = False
+ACCOUNT_LOGIN_METHODS = {'email'}
+ACCOUNT_SIGNUP_FIELDS = ['email*', 'password1*', 'password2*']
 ACCOUNT_ADAPTER = 'django_allauth_multitenant_sso.adapters.MultiTenantAccountAdapter'
 SOCIALACCOUNT_ADAPTER = 'django_allauth_multitenant_sso.adapters.MultiTenantSocialAccountAdapter'
 
@@ -253,7 +252,7 @@ Email content is fully customizable by overriding the templates:
 - `allauth_multitenant_sso/email/invitation_message.txt`
 - `allauth_multitenant_sso/email/invitation_message.html`
 
-In development, emails are printed to the console. In production, configure a real email backend (see Configuration section).
+In development, emails are printed to the console. In production, configure a real email backend (see [Email Configuration Guide](email-configuration.md)).
 
 ## Common Workflows
 
@@ -348,9 +347,9 @@ pip install django-allauth
 
 ## Next Steps
 
-- Read the full [README](README.md)
-- Review [Architecture documentation](ARCHITECTURE.md)
-- Check out the [example project](example/)
+- Read the full [README](https://github.com/wshayes/django-allauth-multitenant-sso/blob/main/README.md)
+- Review [Architecture documentation](architecture.md)
+- Check out the [example project](https://github.com/wshayes/django-allauth-multitenant-sso/tree/main/example/)
 - Customize templates for your app
 - Set up email notifications for invitations
 - Configure production SSO providers
@@ -376,6 +375,6 @@ Before deploying to production:
 
 ## Support
 
-- Documentation: [README](README.md)
-- Issues: https://github.com/yourusername/django-allauth-multitenant-sso/issues
-- Examples: [example/](example/)
+- Documentation: [README](https://github.com/wshayes/django-allauth-multitenant-sso/blob/main/README.md)
+- Issues: https://github.com/wshayes/django-allauth-multitenant-sso/issues
+- Examples: [example/](https://github.com/wshayes/django-allauth-multitenant-sso/tree/main/example/)

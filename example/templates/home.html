@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Multi-Tenant SSO Demo</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .container {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            padding: 40px;
+            max-width: 800px;
+            width: 100%;
+        }
+        h1 {
+            color: #667eea;
+            margin-bottom: 10px;
+            font-size: 2.5em;
+        }
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 1.2em;
+        }
+        .user-info {
+            background: #f8f9fa;
+            border-left: 4px solid #667eea;
+            padding: 20px;
+            margin: 30px 0;
+            border-radius: 4px;
+        }
+        .user-info h2 {
+            color: #667eea;
+            margin-bottom: 15px;
+            font-size: 1.5em;
+        }
+        .user-info p {
+            margin: 8px 0;
+            color: #555;
+        }
+        .user-info strong {
+            color: #333;
+        }
+        .actions {
+            margin-top: 30px;
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+        .btn {
+            display: inline-block;
+            padding: 12px 24px;
+            text-decoration: none;
+            border-radius: 6px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            text-align: center;
+        }
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+        .btn-primary:hover {
+            background: #5568d3;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+        .btn-secondary:hover {
+            background: #5a6268;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(108, 117, 125, 0.4);
+        }
+        .btn-outline {
+            background: transparent;
+            color: #667eea;
+            border: 2px solid #667eea;
+        }
+        .btn-outline:hover {
+            background: #667eea;
+            color: white;
+        }
+        .features {
+            margin-top: 40px;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+        }
+        .feature {
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            text-align: center;
+        }
+        .feature h3 {
+            color: #667eea;
+            margin-bottom: 10px;
+        }
+        .feature p {
+            color: #666;
+            font-size: 0.9em;
+        }
+        .messages {
+            margin-bottom: 20px;
+        }
+        .message {
+            padding: 12px 20px;
+            border-radius: 6px;
+            margin-bottom: 10px;
+        }
+        .message.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .message.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .message.info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🏢 Multi-Tenant SSO Demo</h1>
+        <p class="subtitle">Welcome to the Django Allauth Multi-Tenant SSO demonstration</p>
+
+        {% if messages %}
+        <div class="messages">
+            {% for message in messages %}
+            <div class="message {{ message.tags }}">
+                {{ message }}
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        {% if user.is_authenticated %}
+        <div class="user-info">
+            <h2>👤 Welcome, {{ user.get_full_name|default:user.email }}!</h2>
+            <p><strong>Email:</strong> {{ user.email }}</p>
+            {% if user.username %}
+            <p><strong>Username:</strong> {{ user.username }}</p>
+            {% endif %}
+            {% if user.is_staff %}
+            <p><strong>Status:</strong> Staff Member</p>
+            {% endif %}
+            {% if user.is_superuser %}
+            <p><strong>Status:</strong> Superuser</p>
+            {% endif %}
+        </div>
+
+        <div class="actions">
+            <a href="{% url 'account_logout' %}" class="btn btn-secondary">Logout</a>
+            <a href="{% url 'account_email' %}" class="btn btn-outline">Manage Email</a>
+            <a href="{% url 'account_change_password' %}" class="btn btn-outline">Change Password</a>
+            {% if user.is_staff %}
+            <a href="{% url 'admin:index' %}" class="btn btn-primary">Admin Panel</a>
+            {% endif %}
+        </div>
+
+        {% if admin_tenants %}
+        <div class="user-info" style="margin-top: 30px;">
+            <h2>🏢 Your Organizations (Admin Access)</h2>
+            <p style="margin-bottom: 15px;">You have admin access to the following organizations:</p>
+            <ul style="list-style: none; padding: 0;">
+                {% for tenant in admin_tenants %}
+                <li style="margin-bottom: 10px;">
+                    <a href="{% url 'allauth_multitenant_sso:tenant_dashboard' tenant.slug %}"
+                       class="btn btn-primary"
+                       style="display: inline-block; width: 100%; text-align: left; padding: 12px 20px;">
+                        <strong>{{ tenant.name }}</strong>
+                        <span style="float: right;">→</span>
+                    </a>
+                </li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+
+        {% if tenant_memberships %}
+        <div class="user-info" style="margin-top: 20px;">
+            <h2>👥 Your Organizations</h2>
+            <p style="margin-bottom: 15px;">You are a member of the following organizations:</p>
+            <ul style="list-style: none; padding: 0;">
+                {% for membership in tenant_memberships %}
+                <li style="margin-bottom: 10px; padding: 10px; background: #f8f9fa; border-radius: 4px;">
+                    <strong>{{ membership.tenant.name }}</strong>
+                    <span style="color: #666;">({{ membership.get_role_display }})</span>
+                    {% if membership.is_tenant_admin %}
+                    <a href="{% url 'allauth_multitenant_sso:tenant_dashboard' membership.tenant.slug %}"
+                       class="btn btn-outline"
+                       style="float: right; padding: 5px 15px; font-size: 0.9em;">
+                        Manage
+                    </a>
+                    {% endif %}
+                </li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+        {% else %}
+        <div class="user-info">
+            <h2>Get Started</h2>
+            <p>You are not currently logged in. Please sign in or create an account to continue.</p>
+        </div>
+
+        <div class="actions">
+            <a href="{% url 'account_login' %}" class="btn btn-primary">Login</a>
+            <a href="{% url 'account_signup' %}" class="btn btn-outline">Sign Up</a>
+        </div>
+        {% endif %}
+
+        <div class="features">
+            <div class="feature">
+                <h3>🔐 Multi-Tenant</h3>
+                <p>Organize users into separate tenants with isolated access</p>
+            </div>
+            <div class="feature">
+                <h3>🔑 SSO Support</h3>
+                <p>Integrate with OIDC and SAML providers for single sign-on</p>
+            </div>
+            <div class="feature">
+                <h3>📧 Invitations</h3>
+                <p>Send email invitations to join tenants with role-based access</p>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
+

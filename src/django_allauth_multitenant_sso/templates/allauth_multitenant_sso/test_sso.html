@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test SSO - {{ tenant.name }}</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: #f5f5f5;
+            padding: 20px;
+        }
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+        .header {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .header h1 {
+            color: #667eea;
+            margin-bottom: 10px;
+        }
+        .nav {
+            background: white;
+            padding: 15px 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .nav a {
+            display: inline-block;
+            padding: 10px 20px;
+            margin-right: 10px;
+            text-decoration: none;
+            color: #667eea;
+            border-radius: 4px;
+            transition: background 0.3s;
+        }
+        .nav a:hover, .nav a.active {
+            background: #667eea;
+            color: white;
+        }
+        .card {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .card h2 {
+            color: #667eea;
+            margin-bottom: 20px;
+        }
+        .test-status {
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        .test-status.success {
+            background: #d4edda;
+            border: 2px solid #28a745;
+            color: #155724;
+        }
+        .test-status.error {
+            background: #f8d7da;
+            border: 2px solid #dc3545;
+            color: #721c24;
+        }
+        .test-status.pending {
+            background: #fff3cd;
+            border: 2px solid #ffc107;
+            color: #856404;
+        }
+        .test-details {
+            margin-top: 20px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 6px;
+            font-family: monospace;
+            font-size: 0.9em;
+            white-space: pre-wrap;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .btn {
+            display: inline-block;
+            padding: 12px 24px;
+            text-decoration: none;
+            border-radius: 6px;
+            font-weight: 600;
+            transition: all 0.3s;
+            border: none;
+            cursor: pointer;
+            font-size: 1em;
+        }
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+        .btn-primary:hover {
+            background: #5568d3;
+        }
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+        .btn-secondary:hover {
+            background: #5a6268;
+        }
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 0;
+            border-bottom: 1px solid #eee;
+        }
+        .info-row:last-child {
+            border-bottom: none;
+        }
+        .info-label {
+            font-weight: 600;
+            color: #666;
+        }
+        .info-value {
+            color: #333;
+        }
+        .messages {
+            margin-bottom: 20px;
+        }
+        .message {
+            padding: 12px 20px;
+            border-radius: 6px;
+            margin-bottom: 10px;
+        }
+        .message.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .message.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .message.info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            display: inline-block;
+            margin-right: 10px;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🧪 Test SSO Connection</h1>
+            <p>{{ tenant.name }} - {{ sso_provider.name }}</p>
+            {% include "allauth_multitenant_sso/_user_info.html" %}
+        </div>
+
+        {% if messages %}
+        <div class="messages">
+            {% for message in messages %}
+            <div class="message {{ message.tags }}">
+                {{ message }}
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <div class="nav">
+            <a href="{% url 'allauth_multitenant_sso:tenant_dashboard' tenant.slug %}">Dashboard</a>
+            <a href="{% url 'allauth_multitenant_sso:manage_sso' tenant.slug %}">SSO Configuration</a>
+            <a href="{% url 'allauth_multitenant_sso:manage_users' tenant.slug %}">Manage Users</a>
+            <a href="{% url 'allauth_multitenant_sso:test_sso' tenant.slug %}" class="active">Test SSO</a>
+            <a href="{% url 'home' %}">Home</a>
+        </div>
+
+        <div class="card">
+            <h2>SSO Provider Information</h2>
+
+            <div class="info-row">
+                <span class="info-label">Provider Name:</span>
+                <span class="info-value">{{ sso_provider.name }}</span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">Protocol:</span>
+                <span class="info-value">{{ sso_provider.get_protocol_display }}</span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">Status:</span>
+                <span class="info-value">
+                    {% if sso_provider.is_active %}Active{% else %}Inactive{% endif %}
+                </span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">Tested:</span>
+                <span class="info-value">
+                    {% if sso_provider.is_tested %}
+                        ✅ Yes ({{ sso_provider.last_tested_at|date:"F d, Y H:i" }})
+                    {% else %}
+                        ❌ No
+                    {% endif %}
+                </span>
+            </div>
+            {% if sso_provider.last_tested_by %}
+            <div class="info-row">
+                <span class="info-label">Last Tested By:</span>
+                <span class="info-value">{{ sso_provider.last_tested_by.email }}</span>
+            </div>
+            {% endif %}
+        </div>
+
+        <div class="card">
+            <h2>Test Connection</h2>
+            <p style="margin-bottom: 20px; color: #666;">
+                Click the button below to test the SSO provider configuration. This will verify that:
+            </p>
+            <ul style="margin-bottom: 20px; color: #666; padding-left: 20px;">
+                {% if sso_provider.protocol == 'oidc' %}
+                <li>The OIDC issuer endpoint is reachable</li>
+                <li>The OpenID configuration can be retrieved</li>
+                <li>Required endpoints are available</li>
+                {% else %}
+                <li>The SAML SSO URL is reachable</li>
+                <li>The X.509 certificate is valid</li>
+                <li>Required SAML configuration is present</li>
+                {% endif %}
+            </ul>
+
+            <form method="post" id="test-form">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-primary" id="test-btn">
+                    Run Test
+                </button>
+                <a href="{% url 'allauth_multitenant_sso:tenant_dashboard' tenant.slug %}" class="btn btn-secondary">Back to Dashboard</a>
+            </form>
+
+            {% if sso_provider.test_results %}
+            <div class="test-status {% if sso_provider.is_tested %}success{% else %}error{% endif %}" style="margin-top: 30px;">
+                <h3 style="margin-bottom: 10px;">
+                    {% if sso_provider.is_tested %}
+                        ✅ Test Successful
+                    {% else %}
+                        ❌ Test Failed
+                    {% endif %}
+                </h3>
+                <p><strong>Message:</strong> {{ sso_provider.test_results.message|default:"No message" }}</p>
+
+                {% if sso_provider.test_results.details %}
+                <div class="test-details">
+                    <strong>Test Details:</strong>
+                    {{ sso_provider.test_results.details|pprint }}
+                </div>
+                {% endif %}
+
+                {% if sso_provider.test_results.error %}
+                <div class="test-details" style="background: #f8d7da; margin-top: 10px;">
+                    <strong>Error:</strong> {{ sso_provider.test_results.error }}
+                </div>
+                {% endif %}
+            </div>
+            {% endif %}
+        </div>
+
+        {% if sso_provider.is_tested %}
+        <div class="card">
+            <h2>Next Steps</h2>
+            <p style="margin-bottom: 15px;">
+                Your SSO provider has been successfully tested! You can now:
+            </p>
+            <ol style="padding-left: 20px; margin-bottom: 20px;">
+                <li>Enable the SSO provider by setting it to <strong>Active</strong></li>
+                <li>Go to the dashboard and <strong>Enable SSO</strong> for your tenant</li>
+                <li>Optionally <strong>Enforce SSO</strong> to require all users to use SSO</li>
+            </ol>
+            <a href="{% url 'allauth_multitenant_sso:tenant_dashboard' tenant.slug %}" class="btn btn-primary">Go to Dashboard</a>
+        </div>
+        {% endif %}
+    </div>
+
+    <script>
+        const testForm = document.getElementById('test-form');
+        const testBtn = document.getElementById('test-btn');
+
+        testForm.addEventListener('submit', function() {
+            testBtn.disabled = true;
+            testBtn.innerHTML = '<span class="spinner"></span>Testing...';
+        });
+    </script>
+</body>
+</html>
+

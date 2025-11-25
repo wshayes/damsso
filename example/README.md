@@ -4,6 +4,25 @@ This is a demonstration Django project showing how to use `django-allauth-multit
 
 ## Setup
 
+### Quick Setup with Just (Recommended)
+
+If you have [just](https://github.com/casey/just) installed, you can use:
+
+```bash
+# From the project root
+just example-setup          # Uses uv (required)
+
+# Create a superuser
+just example-createsuperuser
+
+# Start the development server
+just dev
+```
+
+**Note:** This project uses [uv](https://github.com/astral-sh/uv) exclusively for package management. See [AGENTS.md](../AGENTS.md) for details.
+
+### Manual Setup
+
 1. Install dependencies:
 ```bash
 cd example

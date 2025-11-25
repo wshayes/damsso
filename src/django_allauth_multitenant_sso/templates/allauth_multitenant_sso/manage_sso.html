@@ -1,0 +1,666 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Manage SSO - {{ tenant.name }}</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: #f5f5f5;
+            padding: 20px;
+        }
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+        .header {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .header h1 {
+            color: #667eea;
+            margin-bottom: 10px;
+        }
+        .nav {
+            background: white;
+            padding: 15px 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .nav a {
+            display: inline-block;
+            padding: 10px 20px;
+            margin-right: 10px;
+            text-decoration: none;
+            color: #667eea;
+            border-radius: 4px;
+            transition: background 0.3s;
+        }
+        .nav a:hover, .nav a.active {
+            background: #667eea;
+            color: white;
+        }
+        .card {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #333;
+        }
+        .form-group input,
+        .form-group select,
+        .form-group textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 1em;
+            font-family: inherit;
+        }
+        .form-group textarea {
+            resize: vertical;
+            font-family: monospace;
+        }
+        .form-group .help-text {
+            font-size: 0.9em;
+            color: #666;
+            margin-top: 5px;
+        }
+        .form-group .error,
+        .form-group .errorlist {
+            color: #dc3545;
+            font-size: 0.9em;
+            margin-top: 5px;
+            list-style: none;
+            padding: 0;
+        }
+        .form-group .errorlist li {
+            color: #dc3545;
+            margin: 3px 0;
+        }
+        .btn {
+            display: inline-block;
+            padding: 12px 24px;
+            text-decoration: none;
+            border-radius: 6px;
+            font-weight: 600;
+            transition: all 0.3s;
+            border: none;
+            cursor: pointer;
+            font-size: 1em;
+        }
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+        .btn-primary:hover {
+            background: #5568d3;
+        }
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+        .btn-secondary:hover {
+            background: #5a6268;
+        }
+        .protocol-selector {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 30px;
+        }
+        .protocol-option {
+            flex: 1;
+            padding: 20px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            cursor: pointer;
+            text-align: center;
+            transition: all 0.3s;
+        }
+        .protocol-option:hover {
+            border-color: #667eea;
+            background: #f8f9ff;
+        }
+        .protocol-option.selected {
+            border-color: #667eea;
+            background: #667eea;
+            color: white;
+        }
+        .protocol-option input[type="radio"] {
+            display: none;
+        }
+        .protocol-option h3 {
+            margin-bottom: 10px;
+        }
+        .messages {
+            margin-bottom: 20px;
+        }
+        .message {
+            padding: 12px 20px;
+            border-radius: 6px;
+            margin-bottom: 10px;
+        }
+        .message.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .message.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .fieldset {
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        .fieldset legend {
+            font-weight: 600;
+            color: #667eea;
+            padding: 0 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔐 Manage SSO Configuration</h1>
+            <p>{{ tenant.name }}</p>
+            {% include "allauth_multitenant_sso/_user_info.html" %}
+        </div>
+
+        {% if messages %}
+        <div class="messages">
+            {% for message in messages %}
+            <div class="message {{ message.tags }}">
+                {{ message }}
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <div class="nav">
+            <a href="{% url 'allauth_multitenant_sso:tenant_dashboard' tenant.slug %}">Dashboard</a>
+            <a href="{% url 'allauth_multitenant_sso:manage_sso' tenant.slug %}" class="active">SSO Configuration</a>
+            <a href="{% url 'allauth_multitenant_sso:manage_users' tenant.slug %}">Manage Users</a>
+            <a href="{% url 'allauth_multitenant_sso:invite_user' tenant.slug %}">Invite Users</a>
+            <a href="{% url 'home' %}">Home</a>
+        </div>
+
+        <div class="card">
+            <form method="post" id="sso-form" autocomplete="off" data-1p-ignore data-lpignore="true">
+                {% csrf_token %}
+
+                {% if form.non_field_errors %}
+                <div class="messages">
+                    {% for error in form.non_field_errors %}
+                    <div class="message error">
+                        {{ error }}
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+
+                {% if form.errors %}
+                <div class="messages">
+                    <div class="message error">
+                        <strong>Please correct the following errors:</strong>
+                        <ul style="margin-top: 10px; padding-left: 20px;">
+                            {% for field, errors in form.errors.items %}
+                                {% for error in errors %}
+                                <li><strong>{{ field }}:</strong> {{ error }}</li>
+                                {% endfor %}
+                            {% endfor %}
+                        </ul>
+                    </div>
+                </div>
+                {% endif %}
+
+                <div class="form-group">
+                    <label>Select Protocol</label>
+                    <div class="protocol-selector">
+                        <label class="protocol-option" id="oidc-option">
+                            <input type="radio" name="protocol" value="oidc" {% if protocol == 'oidc' or request.POST.protocol == 'oidc' or sso_provider and sso_provider.protocol == 'oidc' or not sso_provider %}checked{% endif %}>
+                            <h3>🔑 OpenID Connect (OIDC)</h3>
+                            <p>Modern OAuth 2.0 based authentication</p>
+                        </label>
+                        <label class="protocol-option" id="saml-option">
+                            <input type="radio" name="protocol" value="saml" {% if protocol == 'saml' or request.POST.protocol == 'saml' or sso_provider and sso_provider.protocol == 'saml' %}checked{% endif %}>
+                            <h3>🔐 SAML 2.0</h3>
+                            <p>Enterprise-grade SSO protocol</p>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Redirect URI Configuration Box -->
+                <div id="oidc-redirect-info" style="display: {% if protocol == 'oidc' or request.POST.protocol == 'oidc' or sso_provider and sso_provider.protocol == 'oidc' or not sso_provider %}block{% else %}none{% endif %}; margin-top: 20px; padding: 20px; background: #fff3cd; border: 2px solid #ffc107; border-radius: 6px;">
+                    <h3 style="color: #856404; margin-bottom: 15px;">⚠️ IMPORTANT: Configure This Redirect URI in Your Identity Provider</h3>
+                    <p style="color: #856404; margin-bottom: 15px;">
+                        Before testing SSO, you must add the following redirect URI to your OIDC provider's application settings:
+                    </p>
+                    <div style="background: white; padding: 15px; border-radius: 4px; margin-bottom: 15px;">
+                        <label style="display: block; font-weight: 600; margin-bottom: 8px; color: #333;">Redirect URI / Callback URL:</label>
+                        <div style="display: flex; gap: 10px; align-items: center;">
+                            <input type="text"
+                                   id="oidc-redirect-uri"
+                                   value="{{ oidc_redirect_uri }}"
+                                   readonly
+                                   style="flex: 1; padding: 10px; border: 2px solid #28a745; border-radius: 4px; font-family: monospace; font-size: 0.9em; background: #f8f9fa;"
+                                   onclick="this.select();">
+                            <button type="button" onclick="copyToClipboard('oidc-redirect-uri', this)" style="padding: 10px 20px; background: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer; white-space: nowrap;">Copy</button>
+                        </div>
+                    </div>
+                    <div style="background: #f8f9fa; padding: 15px; border-radius: 4px; border-left: 4px solid #17a2b8;">
+                        <strong style="color: #0c5460;">📝 How to configure in popular providers:</strong>
+                        <ul style="margin-top: 10px; color: #0c5460; padding-left: 20px; line-height: 1.8;">
+                            <li><strong>Okta:</strong> Applications → [Your App] → General → Login → Sign-in redirect URIs</li>
+                            <li><strong>Google:</strong> APIs & Services → Credentials → OAuth 2.0 Client IDs → Authorized redirect URIs</li>
+                            <li><strong>Azure AD:</strong> App registrations → [Your App] → Authentication → Redirect URIs</li>
+                            <li><strong>Auth0:</strong> Applications → [Your App] → Settings → Allowed Callback URLs</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div id="saml-redirect-info" style="display: {% if protocol == 'saml' or request.POST.protocol == 'saml' or sso_provider and sso_provider.protocol == 'saml' %}block{% else %}none{% endif %}; margin-top: 20px; padding: 20px; background: #d1ecf1; border: 2px solid #17a2b8; border-radius: 6px;">
+                    <h3 style="color: #0c5460; margin-bottom: 15px;">⚠️ IMPORTANT: Configure These SAML URLs in Your Identity Provider</h3>
+                    <p style="color: #0c5460; margin-bottom: 15px;">
+                        Before testing SAML SSO, configure these URLs in your SAML IdP application settings:
+                    </p>
+                    <div style="background: white; padding: 15px; border-radius: 4px; margin-bottom: 15px;">
+                        <label style="display: block; font-weight: 600; margin-bottom: 8px; color: #333;">ACS URL (Assertion Consumer Service):</label>
+                        <div style="display: flex; gap: 10px; align-items: center; margin-bottom: 15px;">
+                            <input type="text"
+                                   id="saml-acs-url"
+                                   value="{{ saml_acs_url }}"
+                                   readonly
+                                   style="flex: 1; padding: 10px; border: 2px solid #28a745; border-radius: 4px; font-family: monospace; font-size: 0.9em; background: #f8f9fa;"
+                                   onclick="this.select();">
+                            <button type="button" onclick="copyToClipboard('saml-acs-url', this)" style="padding: 10px 20px; background: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer; white-space: nowrap;">Copy</button>
+                        </div>
+                        <label style="display: block; font-weight: 600; margin-bottom: 8px; color: #333;">SP Metadata URL:</label>
+                        <div style="display: flex; gap: 10px; align-items: center;">
+                            <input type="text"
+                                   id="saml-metadata-url"
+                                   value="{{ saml_metadata_url }}"
+                                   readonly
+                                   style="flex: 1; padding: 10px; border: 2px solid #007bff; border-radius: 4px; font-family: monospace; font-size: 0.9em; background: #f8f9fa;"
+                                   onclick="this.select();">
+                            <button type="button" onclick="copyToClipboard('saml-metadata-url', this)" style="padding: 10px 20px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; white-space: nowrap;">Copy</button>
+                        </div>
+                    </div>
+                    <div style="background: #f8f9fa; padding: 15px; border-radius: 4px; border-left: 4px solid #17a2b8;">
+                        <strong style="color: #0c5460;">📝 Tip:</strong>
+                        <p style="margin-top: 8px; color: #0c5460;">
+                            Download the SP metadata from the URL above and upload it to your SAML IdP, or manually configure the ACS URL.
+                        </p>
+                    </div>
+                </div>
+
+                <div id="oidc-fields" style="display: {% if protocol == 'oidc' or request.POST.protocol == 'oidc' or sso_provider and sso_provider.protocol == 'oidc' or not sso_provider %}block{% else %}none{% endif %};">
+                    <div class="fieldset">
+                        <legend>OIDC Configuration</legend>
+
+                        <div class="form-group">
+                            <label for="id_name">Provider Name</label>
+                            <input type="text" name="name" id="id_name" class="form-control oidc-required"
+                                   value="{% if 'name' in form.fields and form.name.value %}{{ form.name.value }}{% elif sso_provider %}{{ sso_provider.name }}{% endif %}"
+                                   placeholder="e.g., Google Workspace"
+                                   autocomplete="off"
+                                   data-1p-ignore
+                                   data-lpignore="true"
+                                   {% if protocol == 'oidc' or request.POST.protocol == 'oidc' or sso_provider and sso_provider.protocol == 'oidc' or not sso_provider %}required{% endif %}>
+                            {% if 'name' in form.fields and form.name.errors %}
+                            <ul class="errorlist">
+                                {% for error in form.name.errors %}
+                                <li>{{ error }}</li>
+                                {% endfor %}
+                            </ul>
+                            {% endif %}
+                        </div>
+
+                        <div class="form-group">
+                            <label for="id_oidc_issuer">OIDC Issuer URL</label>
+                            <input type="url" name="oidc_issuer" id="id_oidc_issuer" class="form-control"
+                                   value="{% if 'oidc_issuer' in form.fields and form.oidc_issuer.value %}{{ form.oidc_issuer.value }}{% elif sso_provider %}{{ sso_provider.oidc_issuer }}{% endif %}"
+                                   placeholder="https://accounts.google.com"
+                                   autocomplete="off"
+                                   data-1p-ignore
+                                   data-lpignore="true">
+                            <div class="help-text">If provided, endpoints will be auto-discovered</div>
+                            {% if 'oidc_issuer' in form.fields and form.oidc_issuer.errors %}
+                            <ul class="errorlist">
+                                {% for error in form.oidc_issuer.errors %}
+                                <li>{{ error }}</li>
+                                {% endfor %}
+                            </ul>
+                            {% endif %}
+                        </div>
+
+                        <div class="form-group">
+                            <label for="id_oidc_client_id">Client ID *</label>
+                            <input type="text" name="oidc_client_id" id="id_oidc_client_id" class="form-control oidc-required"
+                                   value="{% if 'oidc_client_id' in form.fields and form.oidc_client_id.value %}{{ form.oidc_client_id.value }}{% elif sso_provider %}{{ sso_provider.oidc_client_id }}{% endif %}"
+                                   placeholder="Client ID from your OIDC provider"
+                                   autocomplete="off"
+                                   data-1p-ignore
+                                   data-lpignore="true"
+                                   {% if protocol == 'oidc' or request.POST.protocol == 'oidc' or sso_provider and sso_provider.protocol == 'oidc' or not sso_provider %}required{% endif %}>
+                            {% if 'oidc_client_id' in form.fields and form.oidc_client_id.errors %}
+                            <ul class="errorlist">
+                                {% for error in form.oidc_client_id.errors %}
+                                <li>{{ error }}</li>
+                                {% endfor %}
+                            </ul>
+                            {% endif %}
+                        </div>
+
+                        <div class="form-group">
+                            <label for="id_oidc_client_secret">Client Secret *</label>
+                            <input type="password" name="oidc_client_secret" id="id_oidc_client_secret" class="form-control oidc-required"
+                                   value="{% if 'oidc_client_secret' in form.fields and form.oidc_client_secret.value %}{{ form.oidc_client_secret.value }}{% elif sso_provider %}{{ sso_provider.oidc_client_secret }}{% endif %}"
+                                   placeholder="Client Secret from your OIDC provider"
+                                   autocomplete="new-password"
+                                   data-1p-ignore
+                                   data-lpignore="true"
+                                   {% if protocol == 'oidc' or request.POST.protocol == 'oidc' or sso_provider and sso_provider.protocol == 'oidc' or not sso_provider %}required{% endif %}>
+                            {% if 'oidc_client_secret' in form.fields and form.oidc_client_secret.errors %}
+                            <ul class="errorlist">
+                                {% for error in form.oidc_client_secret.errors %}
+                                <li>{{ error }}</li>
+                                {% endfor %}
+                            </ul>
+                            {% endif %}
+                        </div>
+
+                        <div class="form-group">
+                            <label for="id_oidc_scopes">Scopes</label>
+                            <input type="text" name="oidc_scopes" id="id_oidc_scopes" class="form-control"
+                                   value="{% if 'oidc_scopes' in form.fields and form.oidc_scopes.value %}{{ form.oidc_scopes.value }}{% elif sso_provider %}{{ sso_provider.oidc_scopes }}{% else %}openid email profile{% endif %}"
+                                   placeholder="openid email profile"
+                                   autocomplete="off"
+                                   data-1p-ignore
+                                   data-lpignore="true">
+                            <div class="help-text">Space-separated list of OAuth scopes</div>
+                            {% if 'oidc_scopes' in form.fields and form.oidc_scopes.errors %}
+                            <ul class="errorlist">
+                                {% for error in form.oidc_scopes.errors %}
+                                <li>{{ error }}</li>
+                                {% endfor %}
+                            </ul>
+                            {% endif %}
+                        </div>
+
+                        <div class="form-group">
+                            <label>Optional Endpoints (leave blank if using issuer discovery)</label>
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                                <div>
+                                    <label for="id_oidc_authorization_endpoint">Authorization Endpoint</label>
+                                    <input type="url" name="oidc_authorization_endpoint" id="id_oidc_authorization_endpoint"
+                                           value="{% if 'oidc_authorization_endpoint' in form.fields and form.oidc_authorization_endpoint.value %}{{ form.oidc_authorization_endpoint.value }}{% elif sso_provider %}{{ sso_provider.oidc_authorization_endpoint }}{% endif %}"
+                                           autocomplete="off"
+                                           data-1p-ignore
+                                           data-lpignore="true">
+                                </div>
+                                <div>
+                                    <label for="id_oidc_token_endpoint">Token Endpoint</label>
+                                    <input type="url" name="oidc_token_endpoint" id="id_oidc_token_endpoint"
+                                           value="{% if 'oidc_token_endpoint' in form.fields and form.oidc_token_endpoint.value %}{{ form.oidc_token_endpoint.value }}{% elif sso_provider %}{{ sso_provider.oidc_token_endpoint }}{% endif %}"
+                                           autocomplete="off"
+                                           data-1p-ignore
+                                           data-lpignore="true">
+                                </div>
+                                <div>
+                                    <label for="id_oidc_userinfo_endpoint">UserInfo Endpoint</label>
+                                    <input type="url" name="oidc_userinfo_endpoint" id="id_oidc_userinfo_endpoint"
+                                           value="{% if 'oidc_userinfo_endpoint' in form.fields and form.oidc_userinfo_endpoint.value %}{{ form.oidc_userinfo_endpoint.value }}{% elif sso_provider %}{{ sso_provider.oidc_userinfo_endpoint }}{% endif %}"
+                                           autocomplete="off"
+                                           data-1p-ignore
+                                           data-lpignore="true">
+                                </div>
+                                <div>
+                                    <label for="id_oidc_jwks_uri">JWKS URI</label>
+                                    <input type="url" name="oidc_jwks_uri" id="id_oidc_jwks_uri"
+                                           value="{% if 'oidc_jwks_uri' in form.fields and form.oidc_jwks_uri.value %}{{ form.oidc_jwks_uri.value }}{% elif sso_provider %}{{ sso_provider.oidc_jwks_uri }}{% endif %}"
+                                           autocomplete="off"
+                                           data-1p-ignore
+                                           data-lpignore="true">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="saml-fields" style="display: {% if protocol == 'saml' or request.POST.protocol == 'saml' or sso_provider and sso_provider.protocol == 'saml' %}block{% else %}none{% endif %};">
+                    <div class="fieldset">
+                        <legend>SAML Configuration</legend>
+
+                        <div class="form-group">
+                            <label for="id_saml_name">Provider Name</label>
+                            <input type="text" name="name" id="id_saml_name" class="form-control saml-required"
+                                   value="{% if sso_provider %}{{ sso_provider.name }}{% endif %}"
+                                   placeholder="e.g., Okta SAML"
+                                   autocomplete="off"
+                                   data-1p-ignore
+                                   data-lpignore="true"
+                                   {% if protocol == 'saml' or request.POST.protocol == 'saml' or sso_provider and sso_provider.protocol == 'saml' %}required{% endif %}>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="id_saml_entity_id">Entity ID / Issuer *</label>
+                            <input type="text" name="saml_entity_id" id="id_saml_entity_id" class="form-control saml-required"
+                                   value="{% if sso_provider %}{{ sso_provider.saml_entity_id }}{% endif %}"
+                                   placeholder="Entity ID from your SAML provider"
+                                   autocomplete="off"
+                                   data-1p-ignore
+                                   data-lpignore="true"
+                                   {% if protocol == 'saml' or request.POST.protocol == 'saml' or sso_provider and sso_provider.protocol == 'saml' %}required{% endif %}>
+                            {% if form.saml_entity_id.errors %}
+                            <div class="error">{{ form.saml_entity_id.errors }}</div>
+                            {% endif %}
+                        </div>
+
+                        <div class="form-group">
+                            <label for="id_saml_sso_url">SAML SSO URL *</label>
+                            <input type="url" name="saml_sso_url" id="id_saml_sso_url" class="form-control saml-required"
+                                   value="{% if sso_provider %}{{ sso_provider.saml_sso_url }}{% endif %}"
+                                   placeholder="SAML SSO URL from your IdP"
+                                   autocomplete="off"
+                                   data-1p-ignore
+                                   data-lpignore="true"
+                                   {% if protocol == 'saml' or request.POST.protocol == 'saml' or sso_provider and sso_provider.protocol == 'saml' %}required{% endif %}>
+                            {% if form.saml_sso_url.errors %}
+                            <div class="error">{{ form.saml_sso_url.errors }}</div>
+                            {% endif %}
+                        </div>
+
+                        <div class="form-group">
+                            <label for="id_saml_slo_url">SAML SLO URL (Optional)</label>
+                            <input type="url" name="saml_slo_url" id="id_saml_slo_url" class="form-control"
+                                   value="{% if sso_provider %}{{ sso_provider.saml_slo_url }}{% endif %}"
+                                   placeholder="Single Logout URL"
+                                   autocomplete="off"
+                                   data-1p-ignore
+                                   data-lpignore="true">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="id_saml_x509_cert">X.509 Certificate *</label>
+                            <textarea name="saml_x509_cert" id="id_saml_x509_cert" rows="10" class="saml-required"
+                                      placeholder="Paste the X.509 certificate in PEM format"
+                                      autocomplete="off"
+                                      data-1p-ignore
+                                      data-lpignore="true"
+                                      {% if protocol == 'saml' or request.POST.protocol == 'saml' or sso_provider and sso_provider.protocol == 'saml' %}required{% endif %}>{% if sso_provider %}{{ sso_provider.saml_x509_cert }}{% endif %}</textarea>
+                            <div class="help-text">Paste the certificate including BEGIN and END lines</div>
+                            {% if form.saml_x509_cert.errors %}
+                            <div class="error">{{ form.saml_x509_cert.errors }}</div>
+                            {% endif %}
+                        </div>
+
+                        <div class="form-group">
+                            <label for="id_saml_attribute_mapping">Attribute Mapping (JSON)</label>
+                            <textarea name="saml_attribute_mapping" id="id_saml_attribute_mapping" rows="5"
+                                      placeholder='{"email": "email", "firstName": "first_name", "lastName": "last_name"}'
+                                      autocomplete="off"
+                                      data-1p-ignore
+                                      data-lpignore="true">{% if sso_provider %}{{ sso_provider.saml_attribute_mapping|safe }}{% else %}{"email": "email", "firstName": "first_name", "lastName": "last_name"}{% endif %}</textarea>
+                            <div class="help-text">JSON mapping of SAML attributes to user fields</div>
+                            {% if form.saml_attribute_mapping.errors %}
+                            <div class="error">{{ form.saml_attribute_mapping.errors }}</div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+
+                <div style="margin-top: 30px;">
+                    <button type="submit" class="btn btn-primary">Save SSO Configuration</button>
+                    <a href="{% url 'allauth_multitenant_sso:tenant_dashboard' tenant.slug %}" class="btn btn-secondary">Cancel</a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // Copy to clipboard function
+        function copyToClipboard(elementId, button) {
+            const input = document.getElementById(elementId);
+            input.select();
+            input.setSelectionRange(0, 99999); // For mobile devices
+            document.execCommand('copy');
+
+            // Show feedback
+            const originalText = button.textContent;
+            button.textContent = 'Copied!';
+            button.style.background = '#28a745';
+            setTimeout(() => {
+                button.textContent = originalText;
+                button.style.background = '';
+            }, 2000);
+        }
+
+        // Protocol selector
+        const protocolOptions = document.querySelectorAll('input[name="protocol"]');
+        const oidcFields = document.getElementById('oidc-fields');
+        const samlFields = document.getElementById('saml-fields');
+        const oidcRedirectInfo = document.getElementById('oidc-redirect-info');
+        const samlRedirectInfo = document.getElementById('saml-redirect-info');
+        const oidcOption = document.getElementById('oidc-option');
+        const samlOption = document.getElementById('saml-option');
+
+        function updateFields() {
+            const selected = document.querySelector('input[name="protocol"]:checked');
+            if (selected) {
+                if (selected.value === 'oidc') {
+                    oidcFields.style.display = 'block';
+                    samlFields.style.display = 'none';
+                    oidcRedirectInfo.style.display = 'block';
+                    samlRedirectInfo.style.display = 'none';
+                    oidcOption.classList.add('selected');
+                    samlOption.classList.remove('selected');
+
+                    // Add required to OIDC fields, remove from SAML fields
+                    document.querySelectorAll('.oidc-required').forEach(field => {
+                        field.setAttribute('required', 'required');
+                        field.disabled = false;
+                    });
+                    document.querySelectorAll('.saml-required').forEach(field => {
+                        field.removeAttribute('required');
+                        field.disabled = true;
+                    });
+                    // Disable all SAML fields to prevent submission
+                    samlFields.querySelectorAll('input, textarea, select').forEach(field => {
+                        field.disabled = true;
+                    });
+                    // Enable all OIDC fields
+                    oidcFields.querySelectorAll('input, textarea, select').forEach(field => {
+                        field.disabled = false;
+                    });
+                } else if (selected.value === 'saml') {
+                    oidcFields.style.display = 'none';
+                    samlFields.style.display = 'block';
+                    oidcRedirectInfo.style.display = 'none';
+                    samlRedirectInfo.style.display = 'block';
+                    samlOption.classList.add('selected');
+                    oidcOption.classList.remove('selected');
+
+                    // Add required to SAML fields, remove from OIDC fields
+                    document.querySelectorAll('.saml-required').forEach(field => {
+                        field.setAttribute('required', 'required');
+                        field.disabled = false;
+                    });
+                    document.querySelectorAll('.oidc-required').forEach(field => {
+                        field.removeAttribute('required');
+                        field.disabled = true;
+                    });
+                    // Disable all OIDC fields to prevent submission
+                    oidcFields.querySelectorAll('input, textarea, select').forEach(field => {
+                        field.disabled = true;
+                    });
+                    // Enable all SAML fields
+                    samlFields.querySelectorAll('input, textarea, select').forEach(field => {
+                        field.disabled = false;
+                    });
+                }
+            }
+        }
+
+        protocolOptions.forEach(option => {
+            option.addEventListener('change', updateFields);
+        });
+
+        // Ensure fields are properly enabled/disabled before form submission
+        const form = document.getElementById('sso-form');
+        form.addEventListener('submit', function(e) {
+            const selected = document.querySelector('input[name="protocol"]:checked');
+            if (selected) {
+                if (selected.value === 'oidc') {
+                    // Disable all SAML fields
+                    samlFields.querySelectorAll('input, textarea, select').forEach(field => {
+                        field.disabled = true;
+                    });
+                    // Ensure all OIDC fields are enabled
+                    oidcFields.querySelectorAll('input, textarea, select').forEach(field => {
+                        field.disabled = false;
+                    });
+                } else if (selected.value === 'saml') {
+                    // Disable all OIDC fields
+                    oidcFields.querySelectorAll('input, textarea, select').forEach(field => {
+                        field.disabled = true;
+                    });
+                    // Ensure all SAML fields are enabled
+                    samlFields.querySelectorAll('input, textarea, select').forEach(field => {
+                        field.disabled = false;
+                    });
+                }
+            }
+        });
+
+        // Initialize on page load
+        updateFields();
+    </script>
+</body>
+</html>
+

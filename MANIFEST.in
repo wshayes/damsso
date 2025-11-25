@@ -1,0 +1,15 @@
+# Include package data
+include LICENSE
+include README.md
+include CHANGELOG.md
+include pyproject.toml
+
+# Include templates
+recursive-include django_allauth_multitenant_sso/templates *
+
+# Include static files (if any)
+recursive-include django_allauth_multitenant_sso/static *
+
+# Include type stubs
+include django_allauth_multitenant_sso/py.typed
+

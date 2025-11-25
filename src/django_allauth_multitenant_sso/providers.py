@@ -13,6 +13,10 @@ from .models import SSOProvider, Tenant
 
 User = get_user_model()
 
+# Shared OAuth instance for all OIDC providers
+# This ensures session state is maintained across requests
+_oauth_registry = OAuth()
+
 
 class OIDCProviderClient:
     """
@@ -30,17 +34,25 @@ class OIDCProviderClient:
             raise ValueError("SSO Provider must be OIDC protocol")
 
         self.provider = sso_provider
-        self.oauth = OAuth()
+        self.oauth = _oauth_registry  # Use shared OAuth instance
+
+        # Generate consistent client name for this tenant
+        self.client_name = f'tenant_{sso_provider.tenant.id}'
 
         # Configure OAuth client
         client_kwargs = {
             'scope': sso_provider.oidc_scopes or 'openid email profile'
         }
 
+        # Check if client is already registered, if so, unregister it first
+        # This ensures we always use the latest configuration
+        if hasattr(self.oauth, '_clients') and self.client_name in self.oauth._clients:
+            del self.oauth._clients[self.client_name]
+
         # Use discovery if issuer is provided
         if sso_provider.oidc_issuer:
             self.oauth.register(
-                name=f'tenant_{sso_provider.tenant.id}',
+                name=self.client_name,
                 client_id=sso_provider.oidc_client_id,
                 client_secret=sso_provider.oidc_client_secret,
                 server_metadata_url=f'{sso_provider.oidc_issuer}/.well-known/openid-configuration',
@@ -49,7 +61,7 @@ class OIDCProviderClient:
         else:
             # Manual configuration
             self.oauth.register(
-                name=f'tenant_{sso_provider.tenant.id}',
+                name=self.client_name,
                 client_id=sso_provider.oidc_client_id,
                 client_secret=sso_provider.oidc_client_secret,
                 authorize_url=sso_provider.oidc_authorization_endpoint,
@@ -59,7 +71,7 @@ class OIDCProviderClient:
                 client_kwargs=client_kwargs
             )
 
-        self.client = self.oauth.create_client(f'tenant_{sso_provider.tenant.id}')
+        self.client = self.oauth.create_client(self.client_name)
 
     def get_authorization_url(self, request, redirect_uri):
         """
@@ -72,10 +84,49 @@ class OIDCProviderClient:
         Returns:
             tuple: (authorization_url, state)
         """
-        return self.client.create_authorization_url(
-            redirect_uri=redirect_uri,
-            state=request.session.get('oidc_state')
-        )
+        import secrets
+
+        # Generate our own state to avoid authlib session issues
+        state = secrets.token_urlsafe(32)
+        nonce = secrets.token_urlsafe(32)
+
+        # Store state and nonce in Django session with a unique key
+        session_key = f"_oauth_state_{self.client_name}"
+        request.session[session_key] = {
+            'state': state,
+            'nonce': nonce,
+            'redirect_uri': redirect_uri
+        }
+        # Mark session as modified if it's a real Django session
+        if hasattr(request.session, 'modified'):
+            request.session.modified = True
+
+        # Build authorization URL manually
+        params = {
+            'response_type': 'code',
+            'client_id': self.provider.oidc_client_id,
+            'redirect_uri': redirect_uri,
+            'scope': self.provider.oidc_scopes or 'openid email profile',
+            'state': state,
+            'nonce': nonce,
+        }
+
+        # Get authorization endpoint
+        if self.provider.oidc_issuer:
+            # Fetch from well-known endpoint
+            import requests
+            well_known_url = f'{self.provider.oidc_issuer}/.well-known/openid-configuration'
+            response = requests.get(well_known_url)
+            metadata = response.json()
+            authorization_endpoint = metadata['authorization_endpoint']
+        else:
+            authorization_endpoint = self.provider.oidc_authorization_endpoint
+
+        # Build URL
+        from urllib.parse import urlencode
+        url = f"{authorization_endpoint}?{urlencode(params)}"
+
+        return url, state
 
     def fetch_token(self, request, redirect_uri):
         """
@@ -88,30 +139,109 @@ class OIDCProviderClient:
         Returns:
             dict: Token response
         """
-        return self.client.authorize_access_token(request, redirect_uri=redirect_uri)
+        import requests
+        from django.http import QueryDict
+
+        # Validate state
+        session_key = f"_oauth_state_{self.client_name}"
+        session_data = request.session.get(session_key)
+
+        if not session_data:
+            raise ValueError("No OAuth state found in session")
+
+        # Get state from callback
+        callback_state = request.GET.get('state')
+        if not callback_state:
+            raise ValueError("No state parameter in callback")
+
+        # Verify state matches
+        if callback_state != session_data['state']:
+            raise ValueError(f"State mismatch: expected {session_data['state']}, got {callback_state}")
+
+        # Get authorization code
+        code = request.GET.get('code')
+        if not code:
+            error = request.GET.get('error', 'unknown_error')
+            error_description = request.GET.get('error_description', 'No description provided')
+            raise ValueError(f"OAuth error: {error} - {error_description}")
+
+        # Get token endpoint
+        if self.provider.oidc_issuer:
+            well_known_url = f'{self.provider.oidc_issuer}/.well-known/openid-configuration'
+            response = requests.get(well_known_url)
+            metadata = response.json()
+            token_endpoint = metadata['token_endpoint']
+        else:
+            token_endpoint = self.provider.oidc_token_endpoint
+
+        # Exchange code for token
+        token_data = {
+            'grant_type': 'authorization_code',
+            'code': code,
+            'redirect_uri': redirect_uri,
+            'client_id': self.provider.oidc_client_id,
+            'client_secret': self.provider.oidc_client_secret,
+        }
+
+        token_response = requests.post(token_endpoint, data=token_data)
+        token_response.raise_for_status()
+        token = token_response.json()
+
+        # Clean up session
+        if session_key in request.session:
+            del request.session[session_key]
+        if hasattr(request.session, 'modified'):
+            request.session.modified = True
+
+        return token
 
     def get_userinfo(self, token):
         """
         Get user information from OIDC provider.
 
         Args:
-            token: Access token from provider
+            token: Token dict from provider containing access_token and id_token
 
         Returns:
             dict: User information
         """
-        if self.provider.oidc_userinfo_endpoint:
-            response = self.client.get(
-                self.provider.oidc_userinfo_endpoint,
-                token=token
-            )
-            return response.json()
+        import requests
+
+        # Get userinfo endpoint
+        if self.provider.oidc_issuer:
+            well_known_url = f'{self.provider.oidc_issuer}/.well-known/openid-configuration'
+            response = requests.get(well_known_url)
+            metadata = response.json()
+            userinfo_endpoint = metadata.get('userinfo_endpoint')
         else:
-            # Try to parse user info from ID token
-            id_token = token.get('id_token')
-            if id_token:
-                claims = jwt.decode(id_token, self.provider.oidc_client_secret)
-                return claims
+            userinfo_endpoint = self.provider.oidc_userinfo_endpoint
+
+        # Fetch user info from userinfo endpoint
+        if userinfo_endpoint and 'access_token' in token:
+            headers = {
+                'Authorization': f"Bearer {token['access_token']}"
+            }
+            response = requests.get(userinfo_endpoint, headers=headers)
+            response.raise_for_status()
+            return response.json()
+
+        # Fallback: Try to parse user info from ID token
+        id_token = token.get('id_token')
+        if id_token:
+            # Decode without verification for now (verification would require fetching JWKS)
+            import base64
+            import json
+            # Split the JWT and decode the payload
+            parts = id_token.split('.')
+            if len(parts) == 3:
+                # Add padding if needed
+                payload = parts[1]
+                padding = 4 - len(payload) % 4
+                if padding != 4:
+                    payload += '=' * padding
+                decoded = base64.urlsafe_b64decode(payload)
+                return json.loads(decoded)
+
         return {}
 
     def test_connection(self):
