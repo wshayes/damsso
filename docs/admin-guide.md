@@ -2,28 +2,67 @@
 
 This guide explains the Django admin interface structure and how to use each section effectively.
 
+## Authentication Model Overview
+
+**⚠️ CRITICAL DISTINCTION**: This package implements **two completely separate authentication systems**:
+
+### 1. Django Account Users (Platform Administration)
+- **Purpose**: Platform/SaaS application management
+- **Login URL**: `/admin/` or `/accounts/login/`
+- **User Type**: Django superusers and staff users
+- **What They Manage**:
+  - The Django application itself
+  - Creating and configuring tenants
+  - Platform-wide settings
+  - Accessing the Django admin interface
+- **Authentication**: Standard Django password-based authentication
+- **SSO Support**: No (uses Django's authentication system)
+
+### 2. Tenant Users (Tenant-Specific Members)
+- **Purpose**: Tenant/organization membership and access
+- **Login URL**: `/tenants/login/<tenant-slug>/`
+- **User Type**: Organization members (can be the same `User` object as platform admin)
+- **What They Manage**:
+  - Tenant-specific SSO configuration
+  - Inviting users to their tenant
+  - Managing tenant members and roles
+  - Accessing tenant dashboard
+- **Authentication**: Email/password OR SSO (OIDC/SAML) per tenant configuration
+- **SSO Support**: Yes (OIDC and SAML 2.0 per tenant)
+
+### Important Notes
+
+1. **Same User, Different Roles**: A single Django `User` can be BOTH a platform administrator AND a member of one or more tenants
+2. **Separate Login Flows**: Platform admins use `/admin/`, tenant members use `/tenants/login/<slug>/`
+3. **Data Isolation**: Tenant data is isolated via the `TenantUser` model - one tenant cannot see another tenant's users or configuration
+4. **Session Context**: When logging in as a tenant member, the session stores `current_tenant_id` and `current_tenant_slug`
+
 ## Understanding the Admin Sections
 
 The Django admin interface is organized into three main sections, each serving a different purpose:
 
 ### 1. Authentication/Authorization (Django Core)
 
-This section contains Django's built-in authentication models.
+This section contains Django's built-in authentication models for **platform administration**.
 
 #### Users
-- **Purpose**: Base user accounts in the system
-- **What it manages**: 
+- **Purpose**: Base user accounts in the Django system (both platform admins and tenant members use this model)
+- **What it manages**:
   - User email addresses
-  - Passwords
-  - Staff/superuser status
-  - User permissions
+  - Passwords (for both platform admins and tenant members)
+  - Staff/superuser status (for platform administrators only)
+  - User permissions (for platform access)
   - Active/inactive status
-- **When to use**: 
-  - Creating new user accounts
-  - Resetting passwords
-  - Managing user permissions
-  - Enabling/disabling user accounts
-- **Note**: This shows ALL users in the system, regardless of tenant membership
+- **When to use**:
+  - Creating platform administrator accounts (set `is_staff=True`)
+  - Resetting passwords for any user
+  - Managing Django admin permissions
+  - Enabling/disabling user accounts globally
+- **Important Notes**:
+  - This shows ALL users in the system, regardless of tenant membership
+  - This is NOT tenant-specific - use **Tenant Users** section for tenant membership
+  - A user created here does NOT automatically belong to any tenant
+  - To add users to a tenant, use the **Tenant Users** section (see below)
 
 #### Groups
 - **Purpose**: Permission groups for organizing user permissions
@@ -80,19 +119,31 @@ This section contains the multi-tenant SSO models.
   - Open the tenant to view and copy the signup URL from the **Signup Settings** section
   - **Note**: Signup tokens can only be generated via the admin action, not from the individual tenant form
 
-#### Tenant Users
-- **Purpose**: User-to-tenant memberships with role-based access
+#### Tenant Users ⭐ (PRIMARY TENANT MANAGEMENT)
+- **Purpose**: User-to-tenant memberships with role-based access (THIS IS WHERE YOU MANAGE TENANT MEMBERS)
 - **What it manages**:
   - Which users belong to which tenants
   - User roles within tenants (member, admin, owner)
-  - External SSO identity IDs
+  - External SSO identity IDs from OIDC/SAML providers
   - Membership active status
-- **When to use**: 
-  - **Primary way to manage tenant memberships**
-  - Adding users to tenants
-  - Changing user roles within tenants
-  - Viewing tenant membership history
-- **Note**: This is the recommended way to manage users in a tenant context
+  - Multi-tenant membership (one user can belong to multiple tenants)
+- **When to use**:
+  - **✅ PRIMARY way to manage tenant memberships**
+  - ✅ Adding existing users to tenants
+  - ✅ Creating new users and immediately assigning them to a tenant
+  - ✅ Changing user roles within tenants (member → admin → owner)
+  - ✅ Viewing which users belong to which tenants
+  - ✅ Deactivating a user's membership in a specific tenant
+- **Important Notes**:
+  - This is separate from the "Users" section in Authentication/Authorization
+  - Users must exist in the "Users" section before they can be added as Tenant Users
+  - A user can be a member of multiple tenants with different roles in each
+  - Tenant admins can also manage users via the tenant dashboard at `/tenants/tenant/<slug>/users/`
+- **Common Workflow**:
+  1. Create a User in Authentication/Authorization section (if they don't exist)
+  2. Create a TenantUser entry here linking that User to a Tenant
+  3. Set their role (member, admin, or owner)
+  4. User can now login at `/tenants/login/<tenant-slug>/`
 
 #### SSO Providers
 - **Purpose**: Per-tenant SSO configuration

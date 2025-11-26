@@ -61,6 +61,21 @@ class MultiTenantAccountAdapter(DefaultAccountAdapter):
 
         return super().get_login_redirect_url(request)
 
+    def logout(self, request):
+        """
+        Clear tenant session data on logout.
+
+        This ensures tenant context is cleared even when using
+        django-allauth's standard /accounts/logout/ endpoint.
+        """
+        # Clear tenant session data
+        if "current_tenant_id" in request.session:
+            del request.session["current_tenant_id"]
+        if "current_tenant_slug" in request.session:
+            del request.session["current_tenant_slug"]
+
+        return super().logout(request)
+
     def pre_authenticate(self, request, **credentials):
         """
         Check if SSO is required for this user's tenant before password authentication.

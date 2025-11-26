@@ -13,6 +13,74 @@ A Django-allauth extension that provides dynamic multi-tenant SSO support using 
 - **Tenant-Specific Signup**: Public signup URLs with randomized tokens for each tenant
 - **Django-allauth Integration**: Seamlessly integrates with django-allauth
 - **Email-Only Authentication**: Uses email addresses as usernames (no separate username field)
+- **Row Level Security (RLS)**: Database-level tenant isolation with PostgreSQL (optional)
+- **UUID7 Primary Keys**: Time-ordered UUIDs for better database indexing performance
+
+## Authentication Model
+
+**⚠️ IMPORTANT**: This package implements **two separate authentication systems**:
+
+### 1. Django Account Users (SaaS Application Management)
+- **Purpose**: Administrative access to the Django application itself
+- **Login URL**: `/admin/` or `/accounts/login/`
+- **Use Cases**:
+  - Django superusers who manage the platform
+  - Staff users who need access to the Django admin interface
+  - Creating and managing tenants via Django admin
+- **Managed Via**: Django's built-in `User` model and admin interface
+
+### 2. Tenant Users (Tenant-Specific Authentication)
+- **Purpose**: Users who belong to specific tenants/organizations
+- **Login URL**: `/tenants/login/<tenant-slug>/`
+- **Use Cases**:
+  - Organization members who access tenant-specific features
+  - SSO-authenticated users from external identity providers
+  - Email/password authentication for tenant members
+- **Managed Via**: `TenantUser` model linking users to tenants with roles
+
+### Key Differences
+
+| Aspect | Django Account Users | Tenant Users |
+|--------|---------------------|--------------|
+| Authentication | Django admin login | Tenant-specific login at `/tenants/login/<slug>/` |
+| Purpose | Platform administration | Tenant membership and access |
+| SSO Support | No (uses Django auth) | Yes (OIDC/SAML per tenant) |
+| Multi-tenancy | N/A | Users can belong to multiple tenants |
+| Roles | Staff/Superuser | Member/Admin/Owner per tenant |
+| Model | Django `User` | `TenantUser` (links User to Tenant) |
+
+**Note**: A single Django `User` can be both a platform administrator AND a member of one or more tenants. The authentication flows are completely separate.
+
+## Tenant Data Isolation
+
+This package provides **two layers of tenant data isolation**:
+
+### 1. Application-Level Isolation (Default)
+- Works with any database (SQLite, PostgreSQL, MySQL, etc.)
+- Uses Django QuerySets to filter data by tenant
+- Session-based tenant context (`current_tenant_id` in session)
+- Decorators enforce tenant membership (`@tenant_member_required`, `@tenant_admin_required`)
+
+### 2. Database-Level Isolation with Row Level Security (Optional)
+- **Requires PostgreSQL** and `django-rls` package
+- Provides an additional security layer at the database level
+- Automatically filters all queries to only show current tenant's data
+- Prevents accidental data leaks even if application logic fails
+- Recommended for production deployments
+
+**When to use RLS:**
+- Production environments with strict security requirements
+- Multi-tenant SaaS applications with sensitive data
+- Compliance requirements (HIPAA, SOC 2, etc.)
+- When you want defense-in-depth security
+
+**How it works:**
+1. Middleware sets the current tenant ID in the database session
+2. PostgreSQL RLS policies automatically filter all queries
+3. One tenant cannot see or modify another tenant's data
+4. Works transparently - no application code changes needed
+
+See the [RLS Setup Guide](docs/rls-setup.md) for configuration details.
 
 ## Installation
 
@@ -153,6 +221,9 @@ python manage.py runserver
 - python3-saml 1.15.0+
 - authlib 1.3.0+
 - cryptography 41.0.0+
+- django-rls 1.0.0+ (optional, for PostgreSQL Row Level Security)
+- uuid-utils 0.9.0+ (for UUID7 primary keys)
+- psycopg2-binary (optional, for PostgreSQL support)
 
 ## Development
 

@@ -24,6 +24,8 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     "django.contrib.sites",
+    # Row Level Security (requires PostgreSQL)
+    # "django_rls",  # Uncomment when using PostgreSQL
     # Allauth
     "allauth",
     "allauth.account",
@@ -41,6 +43,8 @@ MIDDLEWARE = [
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "allauth.account.middleware.AccountMiddleware",
+    # Row Level Security middleware (requires PostgreSQL and django_rls in INSTALLED_APPS)
+    # "django_allauth_multitenant_sso.middleware.TenantRLSMiddleware",  # Uncomment when using PostgreSQL
 ]
 
 ROOT_URLCONF = "demo.urls"
@@ -64,12 +68,26 @@ TEMPLATES = [
 WSGI_APPLICATION = "demo.wsgi.application"
 
 # Database
+# SQLite (default - does not support Row Level Security)
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.sqlite3",
         "NAME": BASE_DIR / "db.sqlite3",
     }
 }
+
+# PostgreSQL (recommended for production - supports Row Level Security)
+# Uncomment the configuration below and comment out SQLite to use PostgreSQL with RLS:
+# DATABASES = {
+#     "default": {
+#         "ENGINE": "django.db.backends.postgresql",
+#         "NAME": "multitenant_sso",
+#         "USER": "postgres",
+#         "PASSWORD": "your_password",
+#         "HOST": "localhost",
+#         "PORT": "5432",
+#     }
+# }
 
 # Password validation
 AUTH_PASSWORD_VALIDATORS = [

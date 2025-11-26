@@ -4,6 +4,83 @@
 
 This package extends django-allauth to provide dynamic, per-tenant SSO configuration using OIDC and SAML protocols. Each tenant can have its own SSO provider, and users can belong to multiple tenants.
 
+## Authentication Model
+
+### Two Separate Authentication Systems
+
+This package implements **two distinct authentication systems** that operate independently:
+
+#### 1. Django Account Users (Platform Administration)
+
+**Purpose**: Administrative access to the Django application and platform management.
+
+- **Authentication Flow**: Standard Django authentication via `/admin/` or `/accounts/login/`
+- **User Model**: Django's built-in `User` model
+- **Use Cases**:
+  - Django superusers managing the entire platform
+  - Staff users with access to Django admin interface
+  - Platform administrators creating and configuring tenants
+  - Managing global SSO settings
+- **Management**: Via Django admin interface (`/admin/`)
+- **SSO**: Not supported (uses standard Django authentication)
+- **Session Storage**: Django session with user ID
+
+#### 2. Tenant Users (Tenant-Specific Access)
+
+**Purpose**: Users who belong to specific tenants/organizations.
+
+- **Authentication Flow**: Tenant-specific login at `/tenants/login/<tenant-slug>/`
+- **User Model**: `TenantUser` model (links Django `User` to `Tenant`)
+- **Use Cases**:
+  - Organization members accessing tenant-specific features
+  - SSO-authenticated users from external IdPs (Okta, Azure AD, etc.)
+  - Email/password authentication for tenant members
+  - Multi-tenant membership (one user in multiple organizations)
+- **Management**: Via `TenantUser` model and tenant admin dashboard
+- **SSO**: Full support for OIDC and SAML per tenant
+- **Session Storage**: Django session with `current_tenant_id` and `current_tenant_slug`
+
+### Authentication Flow Separation
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    Django Application                            │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                   │
+│  ┌────────────────────────────┐  ┌──────────────────────────┐  │
+│  │  Django Account Users      │  │  Tenant Users            │  │
+│  │  (Platform Admin)          │  │  (Tenant Members)        │  │
+│  ├────────────────────────────┤  ├──────────────────────────┤  │
+│  │ Model: User                │  │ Model: TenantUser        │  │
+│  │ Login: /admin/             │  │ Login: /tenants/login/   │  │
+│  │ Auth: Django auth          │  │ Auth: Django + SSO       │  │
+│  │ SSO: No                    │  │ SSO: Yes (OIDC/SAML)     │  │
+│  │ Roles: Staff/Superuser     │  │ Roles: Member/Admin/Own  │  │
+│  └────────────────────────────┘  └──────────────────────────┘  │
+│                                                                   │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### User Relationship
+
+- A Django `User` record is created for both platform admins and tenant members
+- Platform admins typically have `is_staff=True` or `is_superuser=True`
+- Tenant members have a `TenantUser` record linking them to one or more tenants
+- **A single User can be both**: A platform admin AND a member of multiple tenants
+- Authentication context is determined by login URL and stored in session
+
+### Session Context
+
+When a user authenticates via tenant login:
+```python
+request.session['current_tenant_id'] = str(tenant.id)
+request.session['current_tenant_slug'] = tenant.slug
+```
+
+This tenant context is used by decorators to enforce tenant-scoped access:
+- `@tenant_member_required`: Verifies user is active member of tenant
+- `@tenant_admin_required`: Verifies user has admin or owner role in tenant
+
 ## Project Structure
 
 ```
@@ -41,25 +118,41 @@ django-allauth-multitenant-sso/
 
 ### 1. Models (models.py)
 
+#### UUID7 for Primary Keys
+All models use **UUID7** (time-ordered UUIDs) as primary keys instead of UUID4:
+- **Better Database Performance**: UUID7s are time-ordered, providing better B-tree index performance
+- **Sorted by Creation Time**: Natural sorting by creation time without additional timestamp field
+- **Reduced Index Fragmentation**: Sequential-ish nature reduces database index fragmentation
+- **Package**: Uses `uuid-utils` library for UUID7 generation
+
+Benefits over UUID4:
+- UUID4: Random UUIDs cause index fragmentation and poor sequential insert performance
+- UUID7: Time-ordered with random suffix, combining benefits of sequential IDs and UUIDs
+
 #### Tenant
 - Represents an organization with its own SSO configuration
+- Primary Key: UUID7 (time-ordered)
 - Fields: name, slug, domain, sso_enabled, sso_enforced, signup_token
 - Relations: Has many TenantUsers, SSOProviders, TenantInvitations
 
 #### TenantUser
 - Links users to tenants with role-based access
+- Primary Key: UUID7 (time-ordered)
 - Roles: member, admin, owner
 - Stores external SSO identity ID
 - Supports multi-tenant membership (one user, many tenants)
 
 #### SSOProvider
 - Stores SSO configuration per tenant
+- Primary Key: UUID7 (time-ordered)
 - Supports both OIDC and SAML protocols
 - Includes testing metadata and status
 - Only one active provider per tenant
 
 #### TenantInvitation
 - Manages user invitations to tenants
+- Primary Key: UUID7 (time-ordered)
+- Token: UUID7 string (for invitation URLs)
 - Statuses: pending, accepted, expired, cancelled
 - Token-based with expiration
 
@@ -128,14 +221,30 @@ django-allauth-multitenant-sso/
 
 ## Authentication Flow
 
-### Password Authentication
-1. User visits `/accounts/login/`
+### Platform Admin Authentication (Django Accounts)
+1. User visits `/admin/` or `/accounts/login/`
 2. Enters email and password
-3. `MultiTenantAccountAdapter.pre_authenticate()` checks:
-   - Does user belong to tenant with enforced SSO?
-   - If yes, redirect to SSO login
-   - If no, proceed with password auth
-4. On success, user logged in and tenant context set
+3. Django authenticates using `ModelBackend`
+4. On success, user logged in with Django session
+5. No tenant context is set
+6. User can access Django admin interface if `is_staff=True`
+
+### Tenant Member Authentication (Password)
+1. User visits `/tenants/login/<tenant-slug>/`
+2. System determines authentication method based on tenant SSO settings:
+   - **SSO Enforced**: Automatically redirects to SSO provider
+   - **SSO Optional**: Shows both SSO button and email/password form
+   - **No SSO**: Shows only email/password form
+3. User enters email and password (if password auth is allowed)
+4. `MultiTenantAccountAdapter.pre_authenticate()` checks:
+   - Does user have active `TenantUser` membership for this tenant?
+   - If yes, proceed with authentication
+   - If no, show error
+5. On success, user logged in and tenant context set:
+   ```python
+   request.session['current_tenant_id'] = str(tenant.id)
+   request.session['current_tenant_slug'] = tenant.slug
+   ```
 
 ### SSO Authentication (OIDC)
 1. User visits `/tenants/sso/login/<tenant-slug>/`
@@ -168,24 +277,105 @@ django-allauth-multitenant-sso/
 
 ## Multi-Tenant Isolation
 
-### Session-Based Tenant Context
-- Current tenant ID stored in session: `current_tenant_id`
-- Set during login and SSO flows
-- Used for tenant-scoped operations
+This package provides **two layers of tenant data isolation** for defense-in-depth security:
 
-### Role-Based Access Control
+### 1. Application-Level Isolation (Default - All Databases)
+
+#### Session-Based Tenant Context
+- Current tenant ID stored in session: `current_tenant_id`
+- Current tenant slug stored in session: `current_tenant_slug`
+- Set during login and SSO flows via `tenant_login()` view
+- Used by decorators to enforce tenant-scoped operations
+
+#### Role-Based Access Control
 - Three roles: member, admin, owner
 - Admins and owners can:
   - Configure SSO
   - Invite users
   - Manage tenant settings
-- Members have read-only access
+  - View and manage tenant users
+- Members have read-only access to tenant resources
 
-### Data Isolation
+#### QuerySet Filtering
+- All tenant-specific queries filter by `tenant=current_tenant`
+- Examples:
+  ```python
+  TenantUser.objects.filter(tenant=tenant)
+  SSOProvider.objects.filter(tenant=tenant)
+  TenantInvitation.objects.filter(tenant=tenant)
+  ```
+- Access control decorators verify tenant membership before allowing access
+
+### 2. Database-Level Isolation with Row Level Security (PostgreSQL Only)
+
+#### Overview
+- **Optional** but **recommended for production**
+- Requires PostgreSQL and `django-rls` package
+- Provides database-level tenant isolation as a second layer of security
+- Automatically filters all database queries at the PostgreSQL level
+- Prevents data leaks even if application logic has bugs
+
+#### How RLS Works
+1. **Middleware Sets Tenant Context**:
+   - `TenantRLSMiddleware` reads `current_tenant_id` from session
+   - Calls `set_tenant(tenant_id)` to set PostgreSQL session variable
+   - Database now knows which tenant's data to show
+
+2. **PostgreSQL RLS Policies Enforce Isolation**:
+   - Each tenant-specific model has RLS policies defined
+   - Policies automatically filter all SELECT, INSERT, UPDATE, DELETE queries
+   - Example: `WHERE tenant_id = current_setting('rls.tenant_id')::uuid`
+
+3. **Models Configured for RLS**:
+   - `TenantUser`: Inherits from `RLSModel`, filtered by `tenant_id`
+   - `SSOProvider`: Inherits from `RLSModel`, filtered by `tenant_id`
+   - `TenantInvitation`: Inherits from `RLSModel`, filtered by `tenant_id`
+   - Database migration creates PostgreSQL RLS policies automatically
+
+4. **Fallback Support**:
+   - If `django-rls` is not installed, models inherit from `models.Model` instead
+   - Application continues to work with application-level filtering only
+   - Warning is issued when middleware is used without `django-rls`
+
+#### Benefits of RLS
+- **Defense in Depth**: Even if application logic fails, database prevents cross-tenant access
+- **Compliance**: Meets strict security requirements for HIPAA, SOC 2, etc.
+- **Transparent**: No changes to application queries needed
+- **Performance**: PostgreSQL-level filtering is highly optimized
+- **Audit Trail**: Database logs show tenant context for all queries
+
+#### RLS Configuration
+```python
+# settings.py
+INSTALLED_APPS = [
+    ...
+    'django_rls',  # Add django-rls
+    ...
+]
+
+MIDDLEWARE = [
+    ...
+    'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'django_allauth_multitenant_sso.middleware.TenantRLSMiddleware',  # Add RLS middleware
+    ...
+]
+
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.postgresql',  # PostgreSQL required
+        'NAME': 'your_database',
+        ...
+    }
+}
+```
+
+#### Data Isolation Guarantee
 - Each tenant has independent SSO configuration
 - Users can belong to multiple tenants
-- TenantUser model provides the link
+- TenantUser model provides the many-to-many link
 - No shared data between tenants
+- With RLS: Database enforces isolation even if app code has bugs
+- Without RLS: Application code enforces isolation through QuerySet filtering
 
 ## SSO Provider Configuration
 
@@ -304,6 +494,8 @@ django-allauth-multitenant-sso/
 - **python3-saml** (>=1.15.0): SAML implementation
 - **Authlib** (>=1.3.0): OIDC implementation
 - **cryptography** (>=41.0.0): Cryptographic operations
+- **django-rls** (>=1.0.0): Row Level Security for PostgreSQL (optional)
+- **uuid-utils** (>=0.9.0): UUID7 generation for time-ordered primary keys
 
 ### Development Dependencies
 - **pytest**: Testing framework

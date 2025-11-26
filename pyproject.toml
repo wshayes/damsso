@@ -14,6 +14,8 @@ dependencies = [
     "python3-saml>=1.15.0",
     "authlib>=1.3.0",
     "cryptography>=41.0.0",
+    "django-rls>=1.0.0",
+    "uuid-utils>=0.9.0",
 ]
 keywords = ["django", "allauth", "sso", "saml", "oidc", "multi-tenant"]
 classifiers = [

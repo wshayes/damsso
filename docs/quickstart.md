@@ -90,6 +90,24 @@ urlpatterns = [
 python manage.py migrate
 ```
 
+## Understanding User Types
+
+**⚠️ IMPORTANT**: Before proceeding, understand that this package has **two separate authentication systems**:
+
+### Django Account Users (Platform Administration)
+- **Purpose**: Administrative access to manage the Django application
+- **Login**: `/admin/` or `/accounts/login/`
+- **Examples**: Superusers, staff users who manage tenants
+- **Created via**: `python manage.py createsuperuser`
+
+### Tenant Users (Tenant Members)
+- **Purpose**: Users who belong to specific tenants/organizations
+- **Login**: `/tenants/login/<tenant-slug>/`
+- **Examples**: Organization members, SSO users
+- **Created via**: Invitations, SSO login, or linking existing users to tenants
+
+**Key Point**: The same Django `User` can be both a platform admin AND a tenant member. These are separate roles accessed via different login URLs.
+
 ## Create Your First Tenant
 
 ### Via Django Admin
