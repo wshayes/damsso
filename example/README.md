@@ -4,6 +4,25 @@ This is a demonstration Django project showing how to use `django-allauth-multit
 
 ## Setup
 
+### Environment Variables
+
+This project uses environment variables for sensitive configuration. Before running the project:
+
+1. Copy the example environment file:
+```bash
+cd example
+cp example.env .env
+```
+
+2. Edit `.env` and update the values as needed:
+   - **SECRET_KEY**: Generate a new Django secret key for production
+   - **FERNET_KEYS**: Generate encryption keys for SSO data (required in production)
+   - **DEBUG**: Set to `False` in production
+   - **Database settings**: Configure if using PostgreSQL
+   - **Email settings**: Configure for production email delivery
+
+**Security:** Never commit the `.env` file to version control!
+
 ### Quick Setup with Just (Recommended)
 
 If you have [just](https://github.com/casey/just) installed, you can use:
@@ -27,7 +46,7 @@ just dev
 ```bash
 cd example
 uv pip install -e ..
-uv pip install django django-allauth python3-saml authlib cryptography
+uv pip install django django-allauth python3-saml authlib cryptography python-dotenv
 ```
 
 2. Run migrations:
@@ -103,6 +122,8 @@ Users can now log in via SSO at: http://localhost:8000/tenants/sso/login/your-or
 ```
 example/
 ├── manage.py           # Django management script
+├── example.env         # Example environment variables (copy to .env)
+├── .env                # Environment variables (create from example.env, not in git)
 ├── demo/              # Main Django project
 │   ├── settings.py    # Project settings
 │   ├── urls.py        # URL configuration

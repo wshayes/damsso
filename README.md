@@ -6,7 +6,7 @@ A Django-allauth extension that provides dynamic multi-tenant SSO support using 
 
 - **Multi-Tenant Support**: Manage multiple organizations (tenants) with separate SSO configurations
 - **OIDC & SAML**: Support for both OpenID Connect and SAML 2.0 protocols
-- **Flexible Authentication**: Allow email/password OR SSO authentication per tenant
+- **Flexible Authentication**: Allow email/password AND/OR SSO authentication per tenant
 - **SSO Testing**: Tenant admins can test SSO configuration before enabling
 - **User Invitations**: Invite users to tenants with role-based access
 - **SSO Enforcement**: Optionally enforce SSO-only authentication for tenant users
@@ -15,6 +15,7 @@ A Django-allauth extension that provides dynamic multi-tenant SSO support using 
 - **Email-Only Authentication**: Uses email addresses as usernames (no separate username field)
 - **Row Level Security (RLS)**: Database-level tenant isolation with PostgreSQL (optional)
 - **UUID7 Primary Keys**: Time-ordered UUIDs for better database indexing performance
+- **Field-Level Encryption**: Sensitive SSO credentials encrypted at rest in database
 
 ## Authentication Model
 
@@ -40,14 +41,14 @@ A Django-allauth extension that provides dynamic multi-tenant SSO support using 
 
 ### Key Differences
 
-| Aspect | Django Account Users | Tenant Users |
-|--------|---------------------|--------------|
-| Authentication | Django admin login | Tenant-specific login at `/tenants/login/<slug>/` |
-| Purpose | Platform administration | Tenant membership and access |
-| SSO Support | No (uses Django auth) | Yes (OIDC/SAML per tenant) |
-| Multi-tenancy | N/A | Users can belong to multiple tenants |
-| Roles | Staff/Superuser | Member/Admin/Owner per tenant |
-| Model | Django `User` | `TenantUser` (links User to Tenant) |
+| Aspect         | Django Account Users    | Tenant Users                                      |
+| -------------- | ----------------------- | ------------------------------------------------- |
+| Authentication | Django admin login      | Tenant-specific login at `/tenants/login/<slug>/` |
+| Purpose        | Platform administration | Tenant membership and access                      |
+| SSO Support    | No (uses Django auth)   | Yes (OIDC/SAML per tenant)                        |
+| Multi-tenancy  | N/A                     | Users can belong to multiple tenants              |
+| Roles          | Staff/Superuser         | Member/Admin/Owner per tenant                     |
+| Model          | Django `User`           | `TenantUser` (links User to Tenant)               |
 
 **Note**: A single Django `User` can be both a platform administrator AND a member of one or more tenants. The authentication flows are completely separate.
 
@@ -81,6 +82,46 @@ This package provides **two layers of tenant data isolation**:
 4. Works transparently - no application code changes needed
 
 See the [RLS Setup Guide](docs/rls-setup.md) for configuration details.
+
+## Field-Level Encryption
+
+Sensitive SSO provider credentials are **automatically encrypted at rest** in the database:
+
+### Encrypted Fields
+- **OIDC Client Secrets**: OAuth client secrets are encrypted before storage
+- **SAML X.509 Certificates**: SAML signing certificates are encrypted
+
+### How It Works
+- Uses **Fernet symmetric encryption** (AES 128-bit in CBC mode)
+- Encryption happens automatically when saving to database
+- Decryption happens automatically when reading from database
+- Transparent to application code - access fields normally
+
+### Security Benefits
+- **Database dump protection**: Leaked database dumps don't expose secrets
+- **Compliance**: Meets requirements for PCI-DSS, HIPAA, SOC 2
+- **Defense in depth**: Additional security layer beyond database permissions
+- **Key rotation**: Supports multiple encryption keys for zero-downtime rotation
+
+### Configuration Required
+
+```python
+# settings.py
+from cryptography.fernet import Fernet
+
+# Generate a key: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+FERNET_KEYS = [
+    'your-generated-encryption-key-here',
+    # Optional: add old keys here for key rotation
+]
+```
+
+**⚠️ CRITICAL**:
+- Keep encryption keys secure (environment variables, secrets manager)
+- Losing encryption keys means losing access to encrypted data
+- Back up encryption keys separately from database backups
+
+See the [Security Guide](docs/security.md) for key management best practices.
 
 ## Installation
 
@@ -220,9 +261,9 @@ python manage.py runserver
 - django-allauth 0.57.0+
 - python3-saml 1.15.0+
 - authlib 1.3.0+
-- cryptography 41.0.0+
-- django-rls 1.0.0+ (optional, for PostgreSQL Row Level Security)
+- cryptography 41.0.0+ (for field-level encryption using Fernet)
 - uuid-utils 0.9.0+ (for UUID7 primary keys)
+- django-rls 1.0.0+ (optional, for PostgreSQL Row Level Security)
 - psycopg2-binary (optional, for PostgreSQL support)
 
 ## Development

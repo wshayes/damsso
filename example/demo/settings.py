@@ -2,18 +2,39 @@
 Django settings for the multi-tenant SSO demo project.
 """
 
+import os
 from pathlib import Path
+
+# Load environment variables from .env file
+try:
+    from dotenv import load_dotenv  # type: ignore[import-untyped]
+
+    load_dotenv()
+except ImportError:
+    # python-dotenv not installed, continue without it
+    pass
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = "django-insecure-demo-key-change-in-production"
+SECRET_KEY = os.getenv("SECRET_KEY", "django-insecure-demo-key-change-in-production")
+
+# Model Field Encryption Key for sensitive SSO data (OIDC secrets, SAML certificates)
+# SECURITY: Generate a new key for production using: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+# REQUIRED: This must be set in production to encrypt sensitive SSO provider fields
+# SECURITY: Keep the key secure and never commit it to version control!!!
+# FERNET_KEYS can be a comma-separated list in the environment variable
+fernet_keys_env = os.getenv("FERNET_KEYS")
+if fernet_keys_env:
+    FERNET_KEYS = [key.strip() for key in fernet_keys_env.split(",") if key.strip()]
+else:
+    FERNET_KEYS = ["oFeOzOZYMFSV4qentv_PtDjFqnpjYBIyINo449zf2pc="]
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = os.getenv("DEBUG", "True").lower() in ("true", "1", "yes")
 
-ALLOWED_HOSTS = ["localhost", "127.0.0.1", "*"]
+ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS", "localhost,127.0.0.1,*").split(",")
 
 # Application definition
 INSTALLED_APPS = [
@@ -69,25 +90,28 @@ WSGI_APPLICATION = "demo.wsgi.application"
 
 # Database
 # SQLite (default - does not support Row Level Security)
-DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.sqlite3",
-        "NAME": BASE_DIR / "db.sqlite3",
-    }
-}
-
 # PostgreSQL (recommended for production - supports Row Level Security)
-# Uncomment the configuration below and comment out SQLite to use PostgreSQL with RLS:
-# DATABASES = {
-#     "default": {
-#         "ENGINE": "django.db.backends.postgresql",
-#         "NAME": "multitenant_sso",
-#         "USER": "postgres",
-#         "PASSWORD": "your_password",
-#         "HOST": "localhost",
-#         "PORT": "5432",
-#     }
-# }
+# Set DB_ENGINE=postgresql to use PostgreSQL, otherwise SQLite is used
+db_engine = os.getenv("DB_ENGINE", "sqlite").lower()
+
+if db_engine == "postgresql":
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.postgresql",
+            "NAME": os.getenv("DB_NAME", "multitenant_sso"),
+            "USER": os.getenv("DB_USER", "postgres"),
+            "PASSWORD": os.getenv("DB_PASSWORD", ""),
+            "HOST": os.getenv("DB_HOST", "localhost"),
+            "PORT": os.getenv("DB_PORT", "5432"),
+        }
+    }
+else:
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.sqlite3",
+            "NAME": BASE_DIR / "db.sqlite3",
+        }
+    }
 
 # Password validation
 AUTH_PASSWORD_VALIDATORS = [
@@ -147,17 +171,33 @@ LOGIN_REDIRECT_URL = "/"
 LOGOUT_REDIRECT_URL = "/"
 
 # Site configuration
-SITE_NAME = "Multi-Tenant SSO Demo"
-SITE_DOMAIN = "localhost:8000"
+SITE_NAME = os.getenv("SITE_NAME", "Multi-Tenant SSO Demo")
+SITE_DOMAIN = os.getenv("SITE_DOMAIN", "localhost:8000")
 
 # Email settings (for development)
-EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
-DEFAULT_FROM_EMAIL = "noreply@example.com"
-SERVER_EMAIL = "server@example.com"
+# Set EMAIL_BACKEND=smtp to use SMTP, otherwise console backend is used
+email_backend = os.getenv("EMAIL_BACKEND", "console").lower()
+
+if email_backend == "smtp":
+    EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
+    EMAIL_HOST = os.getenv("EMAIL_HOST", "smtp.gmail.com")
+    EMAIL_PORT = int(os.getenv("EMAIL_PORT", "587"))
+    EMAIL_USE_TLS = os.getenv("EMAIL_USE_TLS", "True").lower() in ("true", "1", "yes")
+    EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER", "")
+    EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD", "")
+else:
+    EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
+
+DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", "noreply@example.com")
+SERVER_EMAIL = os.getenv("SERVER_EMAIL", "server@example.com")
 
 # Multi-tenant invitation email settings
-MULTITENANT_INVITATION_FROM_EMAIL = "invitations@example.com"
-MULTITENANT_INVITATION_REPLY_TO_INVITER = True  # Set reply-to as the inviter's email
+MULTITENANT_INVITATION_FROM_EMAIL = os.getenv("MULTITENANT_INVITATION_FROM_EMAIL", "invitations@example.com")
+MULTITENANT_INVITATION_REPLY_TO_INVITER = os.getenv("MULTITENANT_INVITATION_REPLY_TO_INVITER", "True").lower() in (
+    "true",
+    "1",
+    "yes",
+)  # Set reply-to as the inviter's email
 
 # Logging configuration - suppress Chrome DevTools 404 requests
 # This is a harmless Chrome DevTools request that can be safely ignored
@@ -186,12 +226,5 @@ LOGGING = {
     },
 }
 
-# Production email settings (uncomment and configure for production)
-# EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-# EMAIL_HOST = 'smtp.gmail.com'  # or your SMTP server
-# EMAIL_PORT = 587
-# EMAIL_USE_TLS = True
-# EMAIL_HOST_USER = 'your-email@gmail.com'
-# EMAIL_HOST_PASSWORD = 'your-app-password'
-# DEFAULT_FROM_EMAIL = 'noreply@yourdomain.com'
-# MULTITENANT_INVITATION_FROM_EMAIL = 'invitations@yourdomain.com'
+# Production email settings are now configured via environment variables
+# See example.env for all available settings

@@ -486,6 +486,48 @@ DATABASES = {
 - [ ] Add database indexes for common queries
 - [ ] Implement Redis for session storage
 
+## Security Features
+
+### Field-Level Encryption
+
+Sensitive SSO provider credentials are encrypted at rest using `django-fernet-fields`:
+
+#### Encrypted Fields
+- **`SSOProvider.oidc_client_secret`**: OIDC OAuth client secret (EncryptedCharField)
+- **`SSOProvider.saml_x509_cert`**: SAML X.509 certificate (EncryptedTextField)
+
+#### Encryption Implementation
+- **Algorithm**: Fernet (symmetric encryption) - AES 128-bit in CBC mode with HMAC authentication
+- **Library**: `django-fernet-fields` - transparent encryption/decryption
+- **Key Storage**: Environment variable or Django settings (`FERNET_KEYS`)
+- **Key Rotation**: Supports multiple keys for zero-downtime rotation
+
+#### Security Benefits
+1. **Database Dump Protection**: Encrypted data is useless without encryption keys
+2. **Compliance**: Meets PCI-DSS, HIPAA, SOC 2 encryption at rest requirements
+3. **Defense in Depth**: Additional layer beyond database permissions
+4. **Transparent Usage**: Application code accesses fields normally
+
+#### Configuration
+```python
+# settings.py
+FERNET_KEYS = [
+    'your-generated-encryption-key-here',
+    'optional-old-key-for-rotation',
+]
+```
+
+Generate keys:
+```bash
+python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+```
+
+**⚠️ Critical**: Losing encryption keys means losing access to encrypted data. Store keys securely in:
+- Environment variables
+- AWS Secrets Manager / Google Secret Manager
+- HashiCorp Vault
+- Kubernetes Secrets
+
 ## Dependencies
 
 ### Core Dependencies
@@ -494,8 +536,9 @@ DATABASES = {
 - **python3-saml** (>=1.15.0): SAML implementation
 - **Authlib** (>=1.3.0): OIDC implementation
 - **cryptography** (>=41.0.0): Cryptographic operations
-- **django-rls** (>=1.0.0): Row Level Security for PostgreSQL (optional)
+- **django-fernet-fields** (>=0.6): Field-level encryption for sensitive data
 - **uuid-utils** (>=0.9.0): UUID7 generation for time-ordered primary keys
+- **django-rls** (>=1.0.0): Row Level Security for PostgreSQL (optional)
 
 ### Development Dependencies
 - **pytest**: Testing framework

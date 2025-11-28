@@ -142,6 +142,26 @@ class SAMLProviderForm(forms.ModelForm):
         }
 
 
+class SSOProtocolSelectionForm(forms.ModelForm):
+    """
+    Form for selecting which SSO protocol is active (OIDC or SAML).
+    """
+    class Meta:
+        model = SSOProvider
+        fields = ['protocol', 'is_active']
+        widgets = {
+            'protocol': forms.RadioSelect(choices=SSOProvider.PROTOCOL_CHOICES),
+        }
+        labels = {
+            'protocol': _('Active SSO Protocol'),
+            'is_active': _('Enable SSO Authentication'),
+        }
+        help_texts = {
+            'protocol': _('Select which SSO protocol to use for authentication'),
+            'is_active': _('Enable or disable SSO authentication for this tenant'),
+        }
+
+
 class TenantInvitationForm(forms.ModelForm):
     """
     Form for inviting users to a tenant.

@@ -20,7 +20,14 @@ from onelogin.saml2.utils import OneLogin_Saml2_Utils
 
 from .decorators import tenant_admin_required, tenant_member_required
 from .emails import send_invitation_accepted_notification, send_invitation_email
-from .forms import OIDCProviderForm, SAMLProviderForm, SSOProviderForm, TenantForm, TenantInvitationForm
+from .forms import (
+    OIDCProviderForm,
+    SAMLProviderForm,
+    SSOProtocolSelectionForm,
+    SSOProviderForm,
+    TenantForm,
+    TenantInvitationForm,
+)
 from .models import SSOProvider, Tenant, TenantInvitation, TenantUser
 from .providers import OIDCProviderClient, SAMLProviderClient, get_provider_client
 
@@ -489,55 +496,81 @@ def manage_sso_provider(request, tenant_slug):
     Manage SSO provider for tenant.
     """
     tenant = get_object_or_404(Tenant, slug=tenant_slug)
-    sso_provider = tenant.sso_providers.first()  # Get any existing provider, not just active
+    sso_provider = tenant.sso_providers.first()
 
-    protocol = None
-    if request.method == "POST":
-        protocol = request.POST.get("protocol")
-
-        if not protocol:
-            messages.error(request, _("Please select a protocol."))
+    # Handle protocol selection form submission (separate from config forms)
+    if request.method == "POST" and "save_protocol_selection" in request.POST:
+        if not sso_provider:
+            messages.error(request, _("Please configure SSO settings before selecting a protocol."))
             return redirect("allauth_multitenant_sso:manage_sso", tenant_slug=tenant_slug)
 
-        if protocol == "oidc":
-            form = OIDCProviderForm(request.POST, instance=sso_provider)
-        elif protocol == "saml":
-            form = SAMLProviderForm(request.POST, instance=sso_provider)
-        else:
-            messages.error(request, _("Invalid protocol selected."))
+        protocol_form = SSOProtocolSelectionForm(request.POST, instance=sso_provider)
+        if protocol_form.is_valid():
+            protocol_form.save()
+            messages.success(request, _("Active SSO protocol updated successfully."))
             return redirect("allauth_multitenant_sso:manage_sso", tenant_slug=tenant_slug)
 
-        if form.is_valid():
-            provider = form.save(commit=False)
-            provider.tenant = tenant
-            provider.protocol = protocol
-            provider.is_active = True  # Activate when saved
+    # Determine which protocol configuration to show for editing
+    # Priority: GET parameter > existing provider > default to OIDC
+    edit_protocol = request.GET.get("protocol")
+    if not edit_protocol and sso_provider:
+        edit_protocol = sso_provider.protocol
+    if not edit_protocol:
+        edit_protocol = "oidc"
 
-            # Ensure name is set from form data (in case of field conflicts)
-            if "name" in form.cleaned_data:
-                provider.name = form.cleaned_data["name"]
+    # Validate protocol
+    if edit_protocol not in ["oidc", "saml"]:
+        messages.error(request, _("Invalid protocol selected."))
+        return redirect("allauth_multitenant_sso:manage_sso", tenant_slug=tenant_slug)
+
+    # Handle configuration form submission
+    if request.method == "POST" and "save_configuration" in request.POST:
+        if edit_protocol == "oidc":
+            config_form = OIDCProviderForm(request.POST, instance=sso_provider)
+        else:  # saml
+            config_form = SAMLProviderForm(request.POST, instance=sso_provider)
+
+        if config_form.is_valid():
+            # Get or create the provider instance
+            if sso_provider:
+                provider = sso_provider
+            else:
+                provider = SSOProvider(tenant=tenant, protocol=edit_protocol, is_active=False)
+
+            # Only update fields from the current protocol's form
+            if edit_protocol == "oidc":
+                provider.name = config_form.cleaned_data.get("name", provider.name)
+                provider.oidc_issuer = config_form.cleaned_data.get("oidc_issuer") or ""
+                provider.oidc_client_id = config_form.cleaned_data.get("oidc_client_id") or ""
+                provider.oidc_client_secret = config_form.cleaned_data.get("oidc_client_secret") or None
+                provider.oidc_authorization_endpoint = config_form.cleaned_data.get("oidc_authorization_endpoint") or ""
+                provider.oidc_token_endpoint = config_form.cleaned_data.get("oidc_token_endpoint") or ""
+                provider.oidc_userinfo_endpoint = config_form.cleaned_data.get("oidc_userinfo_endpoint") or ""
+                provider.oidc_jwks_uri = config_form.cleaned_data.get("oidc_jwks_uri") or ""
+                provider.oidc_scopes = config_form.cleaned_data.get("oidc_scopes") or "openid email profile"
+            else:  # saml
+                provider.name = config_form.cleaned_data.get("name", provider.name)
+                provider.saml_entity_id = config_form.cleaned_data.get("saml_entity_id") or ""
+                provider.saml_sso_url = config_form.cleaned_data.get("saml_sso_url") or ""
+                provider.saml_slo_url = config_form.cleaned_data.get("saml_slo_url") or ""
+                provider.saml_x509_cert = config_form.cleaned_data.get("saml_x509_cert") or None
+                provider.saml_attribute_mapping = config_form.cleaned_data.get("saml_attribute_mapping") or {}
 
             provider.save()
-
-            messages.success(request, _("SSO provider saved successfully."))
-            return redirect("allauth_multitenant_sso:test_sso", tenant_slug=tenant_slug)
-        else:
-            # Form is invalid - show errors
-            messages.error(request, _("Please correct the errors below."))
+            messages.success(request, _(f"{edit_protocol.upper()} configuration saved successfully."))
+            return redirect("allauth_multitenant_sso:manage_sso", tenant_slug=tenant_slug)
     else:
-        # Determine which form to show based on existing provider or default to OIDC
-        if sso_provider:
-            protocol = sso_provider.protocol
-            if sso_provider.protocol == "oidc":
-                form = OIDCProviderForm(instance=sso_provider)
-            elif sso_provider.protocol == "saml":
-                form = SAMLProviderForm(instance=sso_provider)
-            else:
-                form = SSOProviderForm(instance=sso_provider)
-        else:
-            # No existing provider - default to OIDC form
-            protocol = "oidc"
-            form = OIDCProviderForm()
+        # GET request - show the forms
+        if edit_protocol == "oidc":
+            config_form = OIDCProviderForm(instance=sso_provider)
+        else:  # saml
+            config_form = SAMLProviderForm(instance=sso_provider)
+
+    # Protocol selection form
+    if sso_provider:
+        protocol_form = SSOProtocolSelectionForm(instance=sso_provider)
+    else:
+        protocol_form = None
 
     # Build redirect URIs for configuration
     oidc_redirect_uri = request.build_absolute_uri(
@@ -549,8 +582,9 @@ def manage_sso_provider(request, tenant_slug):
     context = {
         "tenant": tenant,
         "sso_provider": sso_provider,
-        "form": form,
-        "protocol": protocol,
+        "protocol_form": protocol_form,
+        "config_form": config_form,
+        "edit_protocol": edit_protocol,
         "oidc_redirect_uri": oidc_redirect_uri,
         "saml_acs_url": saml_acs_url,
         "saml_metadata_url": saml_metadata_url,

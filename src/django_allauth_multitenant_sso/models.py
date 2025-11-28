@@ -9,7 +9,14 @@ from django.core.exceptions import ValidationError
 from django.db import models
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
-from uuid_utils import uuid7
+from uuid_utils import uuid7 as uuid7_base
+
+from .fields import EncryptedCharField, EncryptedTextField
+
+
+def uuid7():
+    """Generate a UUID7 and convert it to standard UUID."""
+    return uuid.UUID(str(uuid7_base()))
 
 # Try to import django-rls for Row Level Security support
 try:
@@ -167,6 +174,10 @@ class SSOProvider(RLSModel):  # type: ignore[misc]
     """
     Stores SSO provider configuration for a tenant.
 
+    This model can store both OIDC and SAML configurations. The 'protocol' field
+    determines which configuration is currently active. Both OIDC and SAML fields
+    are stored independently and switching between protocols does not lose data.
+
     Row Level Security (RLS): This model uses database-level tenant isolation
     when django-rls is installed and PostgreSQL is used. Each SSO provider is
     automatically filtered to only be accessible when the current tenant matches.
@@ -180,16 +191,23 @@ class SSOProvider(RLSModel):  # type: ignore[misc]
     id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
     tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name="sso_providers")
     name = models.CharField(max_length=255)
-    protocol = models.CharField(max_length=10, choices=PROTOCOL_CHOICES)
+    protocol = models.CharField(
+        max_length=10,
+        choices=PROTOCOL_CHOICES,
+        help_text=_("Which SSO protocol is currently active (OIDC or SAML)"),
+    )
     is_active = models.BooleanField(default=False)
     is_tested = models.BooleanField(default=False, help_text=_(("Has been successfully tested by admin")))  # type: ignore[arg-type]
 
-    # OIDC Configuration
+    # OIDC Configuration (only used when protocol='oidc')
+    # These fields are preserved when switching to SAML
     oidc_issuer = models.URLField(
         blank=True, null=True, help_text=_("OIDC Issuer URL (e.g., https://accounts.google.com)")
     )
     oidc_client_id = models.CharField(max_length=255, blank=True)
-    oidc_client_secret = models.CharField(max_length=500, blank=True)
+    oidc_client_secret = EncryptedCharField(
+        max_length=500, blank=True, null=True, help_text=_("OIDC Client Secret (encrypted at rest)")
+    )
     oidc_authorization_endpoint = models.URLField(blank=True, null=True)
     oidc_token_endpoint = models.URLField(blank=True, null=True)
     oidc_userinfo_endpoint = models.URLField(blank=True, null=True)
@@ -198,11 +216,14 @@ class SSOProvider(RLSModel):  # type: ignore[misc]
         max_length=500, default="openid email profile", help_text=_("Space-separated list of scopes")
     )
 
-    # SAML Configuration
+    # SAML Configuration (only used when protocol='saml')
+    # These fields are preserved when switching to OIDC
     saml_entity_id = models.CharField(max_length=500, blank=True, help_text=_("SAML Entity ID / Issuer"))
     saml_sso_url = models.URLField(blank=True, null=True, help_text=_("SAML Single Sign-On URL"))
     saml_slo_url = models.URLField(blank=True, null=True, help_text=_("SAML Single Logout URL (optional)"))
-    saml_x509_cert = models.TextField(blank=True, help_text=_("X.509 Certificate for SAML (PEM format)"))
+    saml_x509_cert = EncryptedTextField(
+        blank=True, null=True, help_text=_("X.509 Certificate for SAML (PEM format, encrypted at rest)")
+    )
     saml_attribute_mapping = models.JSONField(
         default=dict, blank=True, help_text=_("Mapping of SAML attributes to user fields")
     )

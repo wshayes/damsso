@@ -52,17 +52,73 @@ Regularly update all dependencies, including:
 - python3-saml
 - authlib
 - cryptography
+- django-fernet-fields
+- uuid-utils
+- django-rls (if using PostgreSQL RLS)
 
 ### 2. Use HTTPS in Production
 
 Always use HTTPS in production environments. Never transmit SSO credentials or tokens over unencrypted connections.
 
-### 3. Protect Secrets
+### 3. Protect Secrets and Encryption Keys
 
-- Store client secrets and certificates securely
+#### Field-Level Encryption
+
+This package automatically encrypts sensitive SSO provider credentials at rest using **Fernet symmetric encryption** (AES 128-bit CBC + HMAC):
+- **OIDC Client Secrets**: `SSOProvider.oidc_client_secret` (encrypted)
+- **SAML X.509 Certificates**: `SSOProvider.saml_x509_cert` (encrypted)
+
+**Implementation**: Custom encrypted fields based on Django's BinaryField with transparent encryption/decryption using the `cryptography` library.
+
+#### Encryption Key Management
+
+**CRITICAL**: Properly manage your `FERNET_KEYS` encryption keys:
+
+1. **Generate Strong Keys**
+   ```bash
+   python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+   ```
+
+2. **Store Keys Securely**
+   - ✅ Environment variables: `export FERNET_KEYS='["your-key-here"]'`
+   - ✅ AWS Secrets Manager / Google Secret Manager
+   - ✅ HashiCorp Vault
+   - ✅ Kubernetes Secrets
+   - ❌ NEVER commit to version control
+   - ❌ NEVER hardcode in settings.py for production
+
+3. **Key Rotation Best Practices**
+   - Keep old keys during rotation period:
+     ```python
+     FERNET_KEYS = [
+         'new-key',  # Used for new encryptions
+         'old-key',  # Can still decrypt existing data
+     ]
+     ```
+   - After rotation, re-encrypt old data:
+     ```bash
+     python manage.py rotate_fernet_keys
+     ```
+   - Remove old keys only after all data is re-encrypted
+
+4. **Backup Strategies**
+   - Store encryption keys SEPARATELY from database backups
+   - Encrypted database backup + lost keys = permanent data loss
+   - Use separate key backup location (different cloud region/provider)
+   - Document key recovery procedures
+
+5. **Disaster Recovery**
+   - Test key restoration procedures regularly
+   - Ensure team has access to key backups
+   - Document emergency key rotation process
+
+#### Other Secrets Management
+
+- Store OAuth client secrets and certificates securely
 - Use environment variables or secret management systems
 - Never commit secrets to version control
 - Rotate credentials regularly
+- Audit secret access logs
 
 ### 4. Validate SAML Signatures
 
@@ -97,12 +153,21 @@ Follow Django's security best practices:
 
 ## Known Security Considerations
 
+### Field Encryption
+
+- **Encryption Keys**: Loss of `FERNET_KEYS` results in permanent data loss
+- **Key Rotation**: Plan key rotation before keys are compromised
+- **Key Storage**: Use dedicated secrets management (Vault, Secrets Manager)
+- **Backup Separation**: Store keys separately from encrypted database backups
+- **Algorithm**: Uses Fernet (AES-128 CBC + HMAC) for authenticated encryption
+
 ### SSO Provider Configuration
 
 - Always validate SSO provider certificates
-- Use strong client secrets
+- Use strong client secrets (encrypted automatically)
 - Implement proper redirect URI validation
 - Monitor for unauthorized access attempts
+- Certificates are encrypted at rest in database
 
 ### Multi-Tenant Isolation
 
