@@ -239,6 +239,47 @@ coverage:
     echo "Opening coverage report..."
     open htmlcov/index.html || xdg-open htmlcov/index.html || echo "Please open htmlcov/index.html manually"
 
+# Docker demo environment
+docker-up:
+    #!/usr/bin/env bash
+    echo "Starting Docker demo environment..."
+    cd docker && docker compose up --build -d
+    echo "Waiting for services to start..."
+    cd docker && docker compose logs -f django &
+    LOGS_PID=$!
+    # Wait for Django to be ready
+    until curl -s http://localhost:8000 > /dev/null 2>&1; do sleep 2; done
+    kill $LOGS_PID 2>/dev/null || true
+    echo ""
+    echo "Demo environment is ready! See above for URLs and credentials."
+
+docker-down:
+    cd docker && docker compose down
+
+docker-logs *args:
+    cd docker && docker compose logs -f {{args}}
+
+docker-logs-django:
+    cd docker && docker compose logs -f django
+
+docker-restart:
+    cd docker && docker compose restart django
+
+docker-shell:
+    cd docker && docker compose exec django python manage.py shell
+
+docker-reset:
+    #!/usr/bin/env bash
+    echo "Resetting Docker demo environment (removing volumes)..."
+    cd docker && docker compose down -v
+    echo "Done. Run 'just docker-up' to start fresh."
+
+docker-seed:
+    cd docker && docker compose exec django python manage.py seed_demo_data
+
+docker-ps:
+    cd docker && docker compose ps
+
 # Help
 help:
     @echo "Available commands:"

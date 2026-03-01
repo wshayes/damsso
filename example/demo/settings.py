@@ -36,6 +36,14 @@ DEBUG = os.getenv("DEBUG", "True").lower() in ("true", "1", "yes")
 
 ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS", "localhost,127.0.0.1,*").split(",")
 
+# CSRF trusted origins (needed when running behind Docker/proxies)
+_csrf_origins = os.getenv("CSRF_TRUSTED_ORIGINS", "")
+if _csrf_origins:
+    CSRF_TRUSTED_ORIGINS = [o.strip() for o in _csrf_origins.split(",") if o.strip()]
+
+# Database engine (read early so INSTALLED_APPS can conditionally include django_rls)
+db_engine = os.getenv("DB_ENGINE", "sqlite").lower()
+
 # Application definition
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -45,8 +53,6 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     "django.contrib.sites",
-    # Row Level Security (requires PostgreSQL)
-    # "django_rls",  # Uncomment when using PostgreSQL
     # Allauth
     "allauth",
     "allauth.account",
@@ -54,6 +60,17 @@ INSTALLED_APPS = [
     # Multi-tenant SSO
     "django_allauth_multitenant_sso",
 ]
+
+# Auto-enable django-rls when using PostgreSQL
+if db_engine == "postgresql":
+    try:
+        import django_rls  # noqa: F401
+
+        INSTALLED_APPS.insert(
+            INSTALLED_APPS.index("django_allauth_multitenant_sso"), "django_rls"
+        )
+    except ImportError:
+        pass
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
@@ -64,9 +81,11 @@ MIDDLEWARE = [
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "allauth.account.middleware.AccountMiddleware",
-    # Row Level Security middleware (requires PostgreSQL and django_rls in INSTALLED_APPS)
-    # "django_allauth_multitenant_sso.middleware.TenantRLSMiddleware",  # Uncomment when using PostgreSQL
 ]
+
+# Auto-enable RLS middleware when django_rls is available and using PostgreSQL
+if db_engine == "postgresql" and "django_rls" in INSTALLED_APPS:
+    MIDDLEWARE.append("django_allauth_multitenant_sso.middleware.TenantRLSMiddleware")
 
 ROOT_URLCONF = "demo.urls"
 
@@ -92,8 +111,6 @@ WSGI_APPLICATION = "demo.wsgi.application"
 # SQLite (default - does not support Row Level Security)
 # PostgreSQL (recommended for production - supports Row Level Security)
 # Set DB_ENGINE=postgresql to use PostgreSQL, otherwise SQLite is used
-db_engine = os.getenv("DB_ENGINE", "sqlite").lower()
-
 if db_engine == "postgresql":
     DATABASES = {
         "default": {

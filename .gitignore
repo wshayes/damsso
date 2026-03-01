@@ -72,3 +72,6 @@ secrets.json
 # MkDocs
 site/
 .mkdocs_cache/
+
+# Docker
+docker/pgdata/

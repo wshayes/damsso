@@ -2,6 +2,20 @@
 
 Get up and running with django-allauth-multitenant-sso in 5 minutes.
 
+## Try It with Docker (Fastest)
+
+If you have Docker installed, the fastest way to see everything working is the Docker demo environment. It starts Django, Keycloak (as both an OIDC and SAML identity provider), PostgreSQL with Row Level Security, and Mailpit for email testing:
+
+```bash
+git clone https://github.com/wshayes/django-allauth-multitenant-sso.git
+cd django-allauth-multitenant-sso
+just docker-up    # or: cd docker && docker compose up --build -d
+```
+
+Once running, you'll have three pre-configured tenants with working SSO. See the [Docker Demo README](https://github.com/wshayes/django-allauth-multitenant-sso/blob/main/docker/README.md) for credentials, test users, and step-by-step testing flows.
+
+If you'd rather set things up manually, continue below.
+
 ## Installation
 
 ```bash
@@ -365,6 +379,7 @@ pip install django-allauth
 
 ## Next Steps
 
+- Try the [Docker demo environment](https://github.com/wshayes/django-allauth-multitenant-sso/blob/main/docker/README.md) to test OIDC and SAML flows with Keycloak
 - Read the full [README](https://github.com/wshayes/django-allauth-multitenant-sso/blob/main/README.md)
 - Review [Architecture documentation](architecture.md)
 - Check out the [example project](https://github.com/wshayes/django-allauth-multitenant-sso/tree/main/example/)

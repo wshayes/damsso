@@ -226,9 +226,29 @@ just docs-publish
 - **[Architecture Documentation](docs/architecture.md)** - Technical architecture and design decisions
 - **[Email Configuration Guide](docs/email-configuration.md)** - Email setup for various providers
 
+## Docker Demo Environment (Recommended)
+
+The fastest way to see everything working end-to-end. Starts Django, Keycloak (OIDC + SAML identity provider), PostgreSQL, and Mailpit with a single command:
+
+```bash
+just docker-up
+```
+
+This gives you three pre-configured tenants with working SSO:
+
+| Tenant | URL | SSO | Test Users (password: `password`) |
+|--------|-----|-----|------------|
+| Acme Corp | http://localhost:8000/tenants/login/acme-oidc/ | OIDC | alice@acme.com, bob@acme.com |
+| Globex Corp | http://localhost:8000/tenants/login/globex-saml/ | SAML 2.0 | carol@globex.com, dave@globex.com |
+| Initech | http://localhost:8000/tenants/login/initech/ | None | nouser@initech.com |
+
+**Django admin:** admin@demo.com / demo | **Keycloak:** http://localhost:8443 (admin / admin) | **Mailpit:** http://localhost:8025
+
+See the [Docker Demo README](docker/README.md) for full details, testing flows, and troubleshooting.
+
 ## Example Project
 
-See the `example/` directory for a complete working example.
+See the `example/` directory for a standalone example (without Docker/Keycloak).
 
 ### Quick Setup with Just
 
