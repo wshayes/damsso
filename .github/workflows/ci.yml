@@ -34,7 +34,7 @@ jobs:
 
       - name: Run tests
         run: |
-          python -m pytest tests/ -v --no-migrations --cov=src/django_allauth_multitenant_sso --cov-report=term --cov-report=xml
+          python -m pytest tests/ -v --no-migrations --cov=src/damsso --cov-report=term --cov-report=xml
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v4

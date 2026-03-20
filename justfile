@@ -1,4 +1,4 @@
-# Justfile for django-allauth-multitenant-sso
+# Justfile for damsso
 # Install just: https://github.com/casey/just
 # Usage: just <recipe>
 
@@ -24,7 +24,7 @@ test:
 
 test-cov:
     #!/usr/bin/env bash
-    pytest tests/ --cov=src/django_allauth_multitenant_sso --cov-report=term --cov-report=html --no-migrations
+    pytest tests/ --cov=src/damsso --cov-report=term --cov-report=html --no-migrations
     echo "Coverage report generated in htmlcov/index.html"
 
 test-file file:
@@ -66,7 +66,7 @@ lint-fix:
 
 type-check:
     #!/usr/bin/env bash
-    mypy src/django_allauth_multitenant_sso --ignore-missing-imports
+    mypy src/damsso --ignore-missing-imports
 
 # Pre-commit
 pre-commit:
@@ -226,7 +226,7 @@ version:
 # Migration management
 makemigrations:
     #!/usr/bin/env bash
-    cd example && python manage.py makemigrations django_allauth_multitenant_sso
+    cd example && python manage.py makemigrations damsso
 
 migrate:
     #!/usr/bin/env bash
@@ -235,7 +235,7 @@ migrate:
 # Coverage report
 coverage:
     #!/usr/bin/env bash
-    pytest tests/ --cov=src/django_allauth_multitenant_sso --cov-report=term --cov-report=html --no-migrations
+    pytest tests/ --cov=src/damsso --cov-report=term --cov-report=html --no-migrations
     echo "Opening coverage report..."
     open htmlcov/index.html || xdg-open htmlcov/index.html || echo "Please open htmlcov/index.html manually"
 

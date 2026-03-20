@@ -1,3 +1,3 @@
 """
-Tests for django-allauth-multitenant-sso package.
+Tests for damsso package.
 """

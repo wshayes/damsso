@@ -4,7 +4,7 @@ Views for the demo project.
 
 from django.views.generic import TemplateView
 
-from django_allauth_multitenant_sso.models import TenantUser
+from damsso.models import TenantUser
 
 
 class HomeView(TemplateView):

@@ -1,6 +1,6 @@
 # Multi-Tenant SSO Demo Project
 
-This is a demonstration Django project showing how to use `django-allauth-multitenant-sso`.
+This is a demonstration Django project showing how to use `damsso`.
 
 ## Setup
 

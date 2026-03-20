@@ -1,16 +1,16 @@
 """
-Tests for decorators in django-allauth-multitenant-sso.
+Tests for decorators in damsso.
 """
 import pytest
 from django.test import RequestFactory
 from django.contrib.auth.models import AnonymousUser
 from django.contrib import messages
 from django.contrib.messages.storage.fallback import FallbackStorage
-from django_allauth_multitenant_sso.decorators import (
+from damsso.decorators import (
     tenant_member_required,
     tenant_admin_required
 )
-from django_allauth_multitenant_sso.models import TenantUser
+from damsso.models import TenantUser
 
 
 class TestTenantMemberRequired:

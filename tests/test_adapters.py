@@ -1,5 +1,5 @@
 """
-Tests for adapters in django-allauth-multitenant-sso.
+Tests for adapters in damsso.
 """
 
 from unittest.mock import Mock, patch
@@ -12,8 +12,8 @@ from django.contrib.messages.storage.fallback import FallbackStorage
 from django.contrib.sessions.middleware import SessionMiddleware
 from django.test import RequestFactory
 
-from django_allauth_multitenant_sso.adapters import MultiTenantAccountAdapter, MultiTenantSocialAccountAdapter
-from django_allauth_multitenant_sso.models import TenantInvitation, TenantUser
+from damsso.adapters import MultiTenantAccountAdapter, MultiTenantSocialAccountAdapter
+from damsso.models import TenantInvitation, TenantUser
 
 User = get_user_model()
 

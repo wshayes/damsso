@@ -1,8 +1,8 @@
-site_name: Django Allauth Multi-Tenant SSO
+site_name: DAMSSO (Django Allauth Multitenant SSO)
 site_description: A Django-allauth extension that provides dynamic multi-tenant SSO support using OIDC and SAML
-site_url: https://wshayes.github.io/django-allauth-multitenant-sso/
-repo_url: https://github.com/wshayes/django-allauth-multitenant-sso
-repo_name: wshayes/django-allauth-multitenant-sso
+site_url: https://wshayes.github.io/damsso/
+repo_url: https://github.com/wshayes/damsso
+repo_name: wshayes/damsso
 edit_uri: edit/main/docs/
 
 theme:
@@ -73,8 +73,8 @@ nav:
 extra:
   social:
     - icon: fontawesome/brands/github
-      link: https://github.com/wshayes/django-allauth-multitenant-sso
+      link: https://github.com/wshayes/damsso
     - icon: fontawesome/brands/python
-      link: https://pypi.org/project/django-allauth-multitenant-sso/
+      link: https://pypi.org/project/damsso/
 
 copyright: Copyright &copy; 2024 William Hayes

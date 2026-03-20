@@ -1,4 +1,4 @@
-# Django Allauth Multi-Tenant SSO
+# DAMSSO (Django Allauth Multitenant SSO)
 
 A Django-allauth extension that provides dynamic multi-tenant SSO support using OIDC and SAML.
 
@@ -128,7 +128,7 @@ See the [Security Guide](docs/security.md) for key management best practices.
 This project uses [uv](https://github.com/astral-sh/uv) for package management.
 
 ```bash
-uv pip install django-allauth-multitenant-sso
+uv pip install damsso
 ```
 
 **Note:** While pip may work, this project is developed and tested with uv. For development, uv is required.
@@ -154,7 +154,7 @@ INSTALLED_APPS = [
     'allauth.socialaccount',
 
     # Multi-tenant SSO
-    'django_allauth_multitenant_sso',
+    'damsso',
 ]
 ```
 
@@ -171,8 +171,8 @@ AUTHENTICATION_BACKENDS = [
 ACCOUNT_LOGIN_METHODS = {'email'}
 ACCOUNT_SIGNUP_FIELDS = ['email*', 'password1*', 'password2*']
 ACCOUNT_USER_MODEL_USERNAME_FIELD = None
-ACCOUNT_ADAPTER = 'django_allauth_multitenant_sso.adapters.MultiTenantAccountAdapter'
-SOCIALACCOUNT_ADAPTER = 'django_allauth_multitenant_sso.adapters.MultiTenantSocialAccountAdapter'
+ACCOUNT_ADAPTER = 'damsso.adapters.MultiTenantAccountAdapter'
+SOCIALACCOUNT_ADAPTER = 'damsso.adapters.MultiTenantSocialAccountAdapter'
 
 # Multi-tenant SSO settings (optional)
 MULTITENANT_ALLOW_OPEN_SIGNUP = False  # Require invitations
@@ -187,7 +187,7 @@ from django.urls import path, include
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('accounts/', include('allauth.urls')),
-    path('tenants/', include('django_allauth_multitenant_sso.urls')),
+    path('tenants/', include('damsso.urls')),
 ]
 ```
 
@@ -201,7 +201,7 @@ python manage.py migrate
 
 Comprehensive documentation is available:
 
-- **Online**: https://wshayes.github.io/django-allauth-multitenant-sso/
+- **Online**: https://wshayes.github.io/damsso/
 - **Local**: See the [`docs/`](docs/) folder
 
 ### Building Documentation Locally
@@ -349,5 +349,5 @@ MIT License - see LICENSE file for details
 
 ## Support
 
-- GitHub Issues: https://github.com/wshayes/django-allauth-multitenant-sso/issues
+- GitHub Issues: https://github.com/wshayes/damsso/issues
 - Documentation: [docs/](docs/)

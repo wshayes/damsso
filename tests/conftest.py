@@ -1,5 +1,5 @@
 """
-Pytest configuration and fixtures for django-allauth-multitenant-sso tests.
+Pytest configuration and fixtures for damsso tests.
 """
 
 import os
@@ -28,7 +28,7 @@ if not settings.configured:
             "allauth",
             "allauth.account",
             "allauth.socialaccount",
-            "django_allauth_multitenant_sso",
+            "damsso",
         ],
         MIDDLEWARE=[
             "django.middleware.security.SecurityMiddleware",
@@ -69,8 +69,8 @@ if not settings.configured:
         ACCOUNT_SIGNUP_FIELDS=["email*", "password1*", "password2*"],
         ACCOUNT_USER_MODEL_USERNAME_FIELD=None,
         ACCOUNT_UNIQUE_EMAIL=True,
-        ACCOUNT_ADAPTER="django_allauth_multitenant_sso.adapters.MultiTenantAccountAdapter",
-        SOCIALACCOUNT_ADAPTER="django_allauth_multitenant_sso.adapters.MultiTenantSocialAccountAdapter",
+        ACCOUNT_ADAPTER="damsso.adapters.MultiTenantAccountAdapter",
+        SOCIALACCOUNT_ADAPTER="damsso.adapters.MultiTenantSocialAccountAdapter",
         # Multi-tenant SSO settings
         MULTITENANT_ALLOW_OPEN_SIGNUP=False,
         MULTITENANT_LOGIN_REDIRECT_URL="/",
@@ -88,7 +88,7 @@ import pytest
 from django.contrib.auth import get_user_model
 from django.utils import timezone
 
-from django_allauth_multitenant_sso.models import SSOProvider, Tenant, TenantInvitation, TenantUser
+from damsso.models import SSOProvider, Tenant, TenantInvitation, TenantUser
 
 User = get_user_model()
 

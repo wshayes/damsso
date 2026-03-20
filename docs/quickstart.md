@@ -1,27 +1,27 @@
 # Quick Start Guide
 
-Get up and running with django-allauth-multitenant-sso in 5 minutes.
+Get up and running with damsso in 5 minutes.
 
 ## Try It with Docker (Fastest)
 
 If you have Docker installed, the fastest way to see everything working is the Docker demo environment. It starts Django, Keycloak (as both an OIDC and SAML identity provider), PostgreSQL with Row Level Security, and Mailpit for email testing:
 
 ```bash
-git clone https://github.com/wshayes/django-allauth-multitenant-sso.git
-cd django-allauth-multitenant-sso
+git clone https://github.com/wshayes/damsso.git
+cd damsso
 just docker-up    # or: cd docker && docker compose up --build -d
 ```
 
-Once running, you'll have three pre-configured tenants with working SSO. See the [Docker Demo README](https://github.com/wshayes/django-allauth-multitenant-sso/blob/main/docker/README.md) for credentials, test users, and step-by-step testing flows.
+Once running, you'll have three pre-configured tenants with working SSO. See the [Docker Demo README](https://github.com/wshayes/damsso/blob/main/docker/README.md) for credentials, test users, and step-by-step testing flows.
 
 If you'd rather set things up manually, continue below.
 
 ## Installation
 
 ```bash
-pip install django-allauth-multitenant-sso
+pip install damsso
 # or
-uv pip install django-allauth-multitenant-sso
+uv pip install damsso
 ```
 
 ## Basic Configuration
@@ -44,7 +44,7 @@ INSTALLED_APPS = [
     'allauth.socialaccount',
 
     # Multi-tenant SSO
-    'django_allauth_multitenant_sso',
+    'damsso',
 ]
 
 MIDDLEWARE = [
@@ -69,8 +69,8 @@ SITE_ID = 1
 # Allauth settings
 ACCOUNT_LOGIN_METHODS = {'email'}
 ACCOUNT_SIGNUP_FIELDS = ['email*', 'password1*', 'password2*']
-ACCOUNT_ADAPTER = 'django_allauth_multitenant_sso.adapters.MultiTenantAccountAdapter'
-SOCIALACCOUNT_ADAPTER = 'django_allauth_multitenant_sso.adapters.MultiTenantSocialAccountAdapter'
+ACCOUNT_ADAPTER = 'damsso.adapters.MultiTenantAccountAdapter'
+SOCIALACCOUNT_ADAPTER = 'damsso.adapters.MultiTenantSocialAccountAdapter'
 
 # Multi-tenant SSO settings
 MULTITENANT_ALLOW_OPEN_SIGNUP = False
@@ -94,7 +94,7 @@ from django.urls import path, include
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('accounts/', include('allauth.urls')),
-    path('tenants/', include('django_allauth_multitenant_sso.urls')),
+    path('tenants/', include('damsso.urls')),
 ]
 ```
 
@@ -153,7 +153,7 @@ python manage.py runserver
 
 ```python
 from django.contrib.auth import get_user_model
-from django_allauth_multitenant_sso.models import Tenant, TenantUser
+from damsso.models import Tenant, TenantUser
 
 User = get_user_model()
 
@@ -256,8 +256,8 @@ TenantUser.objects.create(
 ### Via Code
 
 ```python
-from django_allauth_multitenant_sso.models import TenantInvitation
-from django_allauth_multitenant_sso.emails import send_invitation_email
+from damsso.models import TenantInvitation
+from damsso.emails import send_invitation_email
 
 invitation = TenantInvitation.objects.create(
     tenant=tenant,
@@ -280,9 +280,9 @@ The package automatically sends:
 - **Acceptance notifications** to inviters when users join
 
 Email content is fully customizable by overriding the templates:
-- `allauth_multitenant_sso/email/invitation_subject.txt`
-- `allauth_multitenant_sso/email/invitation_message.txt`
-- `allauth_multitenant_sso/email/invitation_message.html`
+- `damsso/email/invitation_subject.txt`
+- `damsso/email/invitation_message.txt`
+- `damsso/email/invitation_message.html`
 
 In development, emails are printed to the console. In production, configure a real email backend (see [Email Configuration Guide](email-configuration.md)).
 
@@ -379,10 +379,10 @@ pip install django-allauth
 
 ## Next Steps
 
-- Try the [Docker demo environment](https://github.com/wshayes/django-allauth-multitenant-sso/blob/main/docker/README.md) to test OIDC and SAML flows with Keycloak
-- Read the full [README](https://github.com/wshayes/django-allauth-multitenant-sso/blob/main/README.md)
+- Try the [Docker demo environment](https://github.com/wshayes/damsso/blob/main/docker/README.md) to test OIDC and SAML flows with Keycloak
+- Read the full [README](https://github.com/wshayes/damsso/blob/main/README.md)
 - Review [Architecture documentation](architecture.md)
-- Check out the [example project](https://github.com/wshayes/django-allauth-multitenant-sso/tree/main/example/)
+- Check out the [example project](https://github.com/wshayes/damsso/tree/main/example/)
 - Customize templates for your app
 - Set up email notifications for invitations
 - Configure production SSO providers
@@ -408,6 +408,6 @@ Before deploying to production:
 
 ## Support
 
-- Documentation: [README](https://github.com/wshayes/django-allauth-multitenant-sso/blob/main/README.md)
-- Issues: https://github.com/wshayes/django-allauth-multitenant-sso/issues
-- Examples: [example/](https://github.com/wshayes/django-allauth-multitenant-sso/tree/main/example/)
+- Documentation: [README](https://github.com/wshayes/damsso/blob/main/README.md)
+- Issues: https://github.com/wshayes/damsso/issues
+- Examples: [example/](https://github.com/wshayes/damsso/tree/main/example/)

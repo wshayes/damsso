@@ -191,7 +191,7 @@
             <ul style="list-style: none; padding: 0;">
                 {% for tenant in admin_tenants %}
                 <li style="margin-bottom: 10px;">
-                    <a href="{% url 'allauth_multitenant_sso:tenant_dashboard' tenant.slug %}"
+                    <a href="{% url 'damsso:tenant_dashboard' tenant.slug %}"
                        class="btn btn-primary"
                        style="display: inline-block; width: 100%; text-align: left; padding: 12px 20px;">
                         <strong>{{ tenant.name }}</strong>
@@ -213,7 +213,7 @@
                     <strong>{{ membership.tenant.name }}</strong>
                     <span style="color: #666;">({{ membership.get_role_display }})</span>
                     {% if membership.is_tenant_admin %}
-                    <a href="{% url 'allauth_multitenant_sso:tenant_dashboard' membership.tenant.slug %}"
+                    <a href="{% url 'damsso:tenant_dashboard' membership.tenant.slug %}"
                        class="btn btn-outline"
                        style="float: right; padding: 5px 15px; font-size: 0.9em;">
                         Manage

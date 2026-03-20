@@ -1,6 +1,6 @@
 # API Reference
 
-This document provides detailed API reference for django-allauth-multitenant-sso.
+This document provides detailed API reference for damsso.
 
 ## Adapters
 
@@ -8,7 +8,7 @@ This document provides detailed API reference for django-allauth-multitenant-sso
 
 Custom django-allauth adapter that handles tenant-aware signup and login.
 
-**Location:** `django_allauth_multitenant_sso.adapters.MultiTenantAccountAdapter`
+**Location:** `damsso.adapters.MultiTenantAccountAdapter`
 
 **Base Class:** `allauth.account.adapter.DefaultAccountAdapter`
 
@@ -83,7 +83,7 @@ Returns the URL to redirect to after login.
 
 Custom django-allauth adapter that handles SSO provider authentication.
 
-**Location:** `django_allauth_multitenant_sso.adapters.MultiTenantSocialAccountAdapter`
+**Location:** `damsso.adapters.MultiTenantSocialAccountAdapter`
 
 **Base Class:** `allauth.socialaccount.adapter.DefaultSocialAccountAdapter`
 
@@ -129,11 +129,11 @@ Saves user after SSO authentication.
 
 Ensures the user is an active member of the tenant.
 
-**Location:** `django_allauth_multitenant_sso.decorators.tenant_member_required`
+**Location:** `damsso.decorators.tenant_member_required`
 
 **Usage:**
 ```python
-from django_allauth_multitenant_sso.decorators import tenant_member_required
+from damsso.decorators import tenant_member_required
 
 @tenant_member_required
 def my_view(request, tenant_slug):
@@ -153,11 +153,11 @@ def my_view(request, tenant_slug):
 
 Ensures the user is an admin or owner of the tenant.
 
-**Location:** `django_allauth_multitenant_sso.decorators.tenant_admin_required`
+**Location:** `damsso.decorators.tenant_admin_required`
 
 **Usage:**
 ```python
-from django_allauth_multitenant_sso.decorators import tenant_admin_required
+from damsso.decorators import tenant_admin_required
 
 @tenant_admin_required
 def manage_sso(request, tenant_slug):
@@ -386,7 +386,7 @@ Accept a tenant invitation.
 
 Handles OpenID Connect authentication flow.
 
-**Location:** `django_allauth_multitenant_sso.providers.OIDCProviderClient`
+**Location:** `damsso.providers.OIDCProviderClient`
 
 #### Methods
 
@@ -430,7 +430,7 @@ Tests OIDC configuration.
 
 Handles SAML 2.0 authentication flow.
 
-**Location:** `django_allauth_multitenant_sso.providers.SAMLProviderClient`
+**Location:** `damsso.providers.SAMLProviderClient`
 
 #### Methods
 
@@ -454,7 +454,7 @@ Tests SAML configuration.
 
 Sends an invitation email to a user.
 
-**Location:** `django_allauth_multitenant_sso.emails.send_invitation_email`
+**Location:** `damsso.emails.send_invitation_email`
 
 **Parameters:**
 - `invitation`: TenantInvitation instance
@@ -464,7 +464,7 @@ Sends an invitation email to a user.
 
 **Example:**
 ```python
-from django_allauth_multitenant_sso.emails import send_invitation_email
+from damsso.emails import send_invitation_email
 
 invitation = TenantInvitation.objects.get(token=token)
 send_invitation_email(invitation, request)
@@ -474,7 +474,7 @@ send_invitation_email(invitation, request)
 
 Sends a notification to the inviter when an invitation is accepted.
 
-**Location:** `django_allauth_multitenant_sso.emails.send_invitation_accepted_notification`
+**Location:** `damsso.emails.send_invitation_accepted_notification`
 
 **Parameters:**
 - `invitation`: TenantInvitation instance

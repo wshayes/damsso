@@ -1,15 +1,15 @@
 """
-Tests for forms in django-allauth-multitenant-sso.
+Tests for forms in damsso.
 """
 import pytest
-from django_allauth_multitenant_sso.forms import (
+from damsso.forms import (
     TenantForm,
     SSOProviderForm,
     OIDCProviderForm,
     SAMLProviderForm,
     TenantInvitationForm
 )
-from django_allauth_multitenant_sso.models import TenantUser, TenantInvitation
+from damsso.models import TenantUser, TenantInvitation
 
 
 class TestTenantForm:

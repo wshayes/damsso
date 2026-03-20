@@ -65,11 +65,11 @@ INSTALLED_APPS = [
     'allauth.socialaccount',
 
     # Multi-tenant SSO
-    'django_allauth_multitenant_sso',
+    'damsso',
 ]
 ```
 
-**Important**: Add `django_rls` **before** `django_allauth_multitenant_sso` to ensure RLS policies are created correctly.
+**Important**: Add `django_rls` **before** `damsso` to ensure RLS policies are created correctly.
 
 ### 4. Add RLS Middleware
 
@@ -85,7 +85,7 @@ MIDDLEWARE = [
     'allauth.account.middleware.AccountMiddleware',
 
     # Row Level Security middleware (AFTER AuthenticationMiddleware)
-    'django_allauth_multitenant_sso.middleware.TenantRLSMiddleware',
+    'damsso.middleware.TenantRLSMiddleware',
 ]
 ```
 
@@ -142,9 +142,9 @@ Django-rls automatically creates RLS policies on models configured with `rls_ten
 
 ```sql
 -- Example for TenantUser table
-ALTER TABLE django_allauth_multitenant_sso_tenantuser ENABLE ROW LEVEL SECURITY;
+ALTER TABLE damsso_tenantuser ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY tenant_isolation ON django_allauth_multitenant_sso_tenantuser
+CREATE POLICY tenant_isolation ON damsso_tenantuser
     USING (tenant_id = current_setting('rls.tenant_id')::uuid);
 ```
 
@@ -155,7 +155,7 @@ Now all queries are automatically filtered:
 users = TenantUser.objects.all()
 
 # Actual SQL executed (PostgreSQL adds WHERE clause automatically)
-SELECT * FROM django_allauth_multitenant_sso_tenantuser
+SELECT * FROM damsso_tenantuser
 WHERE tenant_id = current_setting('rls.tenant_id')::uuid;
 ```
 
@@ -165,9 +165,9 @@ The following models have RLS enabled by the `0003_setup_rls` migration:
 
 | Model | RLS Field | Description | Policy Name |
 |-------|-----------|-------------|-------------|
-| `TenantUser` | `tenant_id` | User-to-tenant memberships | `django_allauth_multitenant_sso_tenantuser_tenant_isolation` |
-| `SSOProvider` | `tenant_id` | SSO configuration per tenant | `django_allauth_multitenant_sso_ssoprovider_tenant_isolation` |
-| `TenantInvitation` | `tenant_id` | User invitations per tenant | `django_allauth_multitenant_sso_tenantinvitation_tenant_isolation` |
+| `TenantUser` | `tenant_id` | User-to-tenant memberships | `damsso_tenantuser_tenant_isolation` |
+| `SSOProvider` | `tenant_id` | SSO configuration per tenant | `damsso_ssoprovider_tenant_isolation` |
+| `TenantInvitation` | `tenant_id` | User invitations per tenant | `damsso_tenantinvitation_tenant_isolation` |
 
 The `Tenant` model itself does **not** have RLS enabled, as it represents the top-level organizational entity.
 
@@ -177,8 +177,8 @@ Each model has a PostgreSQL RLS policy that filters rows based on the current te
 
 ```sql
 -- Example policy for TenantUser
-CREATE POLICY django_allauth_multitenant_sso_tenantuser_tenant_isolation
-ON django_allauth_multitenant_sso_tenantuser
+CREATE POLICY damsso_tenantuser_tenant_isolation
+ON damsso_tenantuser
 USING (
     tenant_id::text = current_setting('rls.tenant_id', true)
     OR current_setting('rls.tenant_id', true) IS NULL
@@ -197,9 +197,9 @@ This policy:
 By default, PostgreSQL superusers bypass RLS policies. To ensure even superusers respect RLS:
 
 ```sql
-ALTER TABLE django_allauth_multitenant_sso_tenantuser FORCE ROW LEVEL SECURITY;
-ALTER TABLE django_allauth_multitenant_sso_ssoprovider FORCE ROW LEVEL SECURITY;
-ALTER TABLE django_allauth_multitenant_sso_tenantinvitation FORCE ROW LEVEL SECURITY;
+ALTER TABLE damsso_tenantuser FORCE ROW LEVEL SECURITY;
+ALTER TABLE damsso_ssoprovider FORCE ROW LEVEL SECURITY;
+ALTER TABLE damsso_tenantinvitation FORCE ROW LEVEL SECURITY;
 ```
 
 ### Django Admin Access
@@ -253,7 +253,7 @@ with connection.cursor() as cursor:
 ### Test Tenant Isolation
 
 ```python
-from django_allauth_multitenant_sso.models import Tenant, TenantUser
+from damsso.models import Tenant, TenantUser
 from django_rls import set_tenant
 
 # Create two tenants
@@ -317,9 +317,9 @@ python manage.py migrate --run-syncdb
 Create indexes on `tenant_id` fields for optimal performance:
 
 ```sql
-CREATE INDEX idx_tenantuser_tenant ON django_allauth_multitenant_sso_tenantuser(tenant_id);
-CREATE INDEX idx_ssoprovider_tenant ON django_allauth_multitenant_sso_ssoprovider(tenant_id);
-CREATE INDEX idx_tenantinvitation_tenant ON django_allauth_multitenant_sso_tenantinvitation(tenant_id);
+CREATE INDEX idx_tenantuser_tenant ON damsso_tenantuser(tenant_id);
+CREATE INDEX idx_ssoprovider_tenant ON damsso_ssoprovider(tenant_id);
+CREATE INDEX idx_tenantinvitation_tenant ON damsso_tenantinvitation(tenant_id);
 ```
 
 These indexes are automatically created by Django migrations.

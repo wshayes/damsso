@@ -84,9 +84,9 @@ This tenant context is used by decorators to enforce tenant-scoped access:
 ## Project Structure
 
 ```
-django-allauth-multitenant-sso/
+damsso/
 ├── src/
-│   └── django_allauth_multitenant_sso/
+│   └── damsso/
 │       ├── __init__.py                 # Package initialization
 │       ├── apps.py                     # Django app configuration
 │       ├── models.py                   # Data models (Tenant, TenantUser, SSOProvider, TenantInvitation)
@@ -356,7 +356,7 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     ...
     'django.contrib.auth.middleware.AuthenticationMiddleware',
-    'django_allauth_multitenant_sso.middleware.TenantRLSMiddleware',  # Add RLS middleware
+    'damsso.middleware.TenantRLSMiddleware',  # Add RLS middleware
     ...
 ]
 
@@ -458,7 +458,7 @@ DATABASES = {
 - Use Django's email system or third-party service
 
 ### Custom Templates
-- Override templates in `templates/allauth_multitenant_sso/`
+- Override templates in `templates/damsso/`
 - Extend base templates for consistent styling
 
 ### Additional SSO Protocols
@@ -549,4 +549,4 @@ python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().d
 
 ## Contributing
 
-See the [Contributing Guide](https://github.com/wshayes/django-allauth-multitenant-sso/blob/main/CONTRIBUTING.md) for contribution guidelines.
+See the [Contributing Guide](https://github.com/wshayes/damsso/blob/main/CONTRIBUTING.md) for contribution guidelines.

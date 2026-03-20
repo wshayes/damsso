@@ -1,7 +1,0 @@
-{% if user.is_authenticated %}
-<div style="margin-top: 15px; padding: 10px; background: #f8f9fa; border-radius: 6px; font-size: 0.9em;">
-    <strong>👤 Logged in as:</strong> {{ user.email }}
-    {% if user.first_name %} ({{ user.first_name }} {{ user.last_name }}){% endif %}
-    <a href="{% url 'allauth_multitenant_sso:tenant_logout' tenant.slug %}" style="margin-left: 15px; color: #667eea; text-decoration: none;">Logout</a>
-</div>
-{% endif %}

@@ -34,5 +34,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Quick start guide
   - Test coverage report
 
-[0.1.0]: https://github.com/wshayes/django-allauth-multitenant-sso/releases/tag/v0.1.0
+[0.1.0]: https://github.com/wshayes/damsso/releases/tag/v0.1.0
 

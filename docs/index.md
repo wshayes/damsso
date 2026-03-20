@@ -1,4 +1,4 @@
-# Django Allauth Multi-Tenant SSO
+# DAMSSO (Django Allauth Multitenant SSO)
 
 A Django-allauth extension that provides dynamic multi-tenant SSO support using OIDC and SAML.
 
@@ -20,10 +20,10 @@ Get up and running in 5 minutes with our [Quick Start Guide](quickstart.md).
 
 ```bash
 # Install the package
-uv pip install django-allauth-multitenant-sso
+uv pip install damsso
 
 # Or with pip
-pip install django-allauth-multitenant-sso
+pip install damsso
 ```
 
 ## Documentation
@@ -51,7 +51,7 @@ pip install django-allauth-multitenant-sso
 This project uses [uv](https://github.com/astral-sh/uv) for package management.
 
 ```bash
-uv pip install django-allauth-multitenant-sso
+uv pip install damsso
 ```
 
 **Note:** While pip may work, this project is developed and tested with uv. For development, uv is required.
@@ -71,16 +71,16 @@ See the `example/` directory in the repository for a complete working example.
 
 ## Support
 
-- **GitHub Issues**: [Report an issue](https://github.com/wshayes/django-allauth-multitenant-sso/issues)
+- **GitHub Issues**: [Report an issue](https://github.com/wshayes/damsso/issues)
 - **Documentation**: This site
-- **Repository**: [View on GitHub](https://github.com/wshayes/django-allauth-multitenant-sso)
+- **Repository**: [View on GitHub](https://github.com/wshayes/damsso)
 
 ## License
 
-MIT License - see [LICENSE](https://github.com/wshayes/django-allauth-multitenant-sso/blob/main/LICENSE) file for details
+MIT License - see [LICENSE](https://github.com/wshayes/damsso/blob/main/LICENSE) file for details
 
 ## Additional Resources
 
-- [Contributing Guide](https://github.com/wshayes/django-allauth-multitenant-sso/blob/main/CONTRIBUTING.md) - How to contribute to the project
-- [Security Policy](https://github.com/wshayes/django-allauth-multitenant-sso/blob/main/SECURITY.md) - Security reporting and best practices
-- [Changelog](https://github.com/wshayes/django-allauth-multitenant-sso/blob/main/CHANGELOG.md) - Version history and changes
+- [Contributing Guide](https://github.com/wshayes/damsso/blob/main/CONTRIBUTING.md) - How to contribute to the project
+- [Security Policy](https://github.com/wshayes/damsso/blob/main/SECURITY.md) - Security reporting and best practices
+- [Changelog](https://github.com/wshayes/damsso/blob/main/CHANGELOG.md) - Version history and changes

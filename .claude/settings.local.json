@@ -8,7 +8,14 @@
       "Bash(python:*)",
       "Bash(curl:*)",
       "Bash(lsof:*)",
-      "Bash(ps:*)"
+      "Bash(ps:*)",
+      "Bash(/usr/local/bin/brew list --formula)",
+      "Bash(/usr/local/bin/brew list --cask)",
+      "Bash(python3:*)",
+      "Bash(chmod +x:*)",
+      "Bash(git commit:*)",
+      "Read(//Users/william/code/**)",
+      "Bash(mv django-allauth-multitenant-sso:*)"
     ],
     "deny": [],
     "ask": []

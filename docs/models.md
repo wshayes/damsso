@@ -1,6 +1,6 @@
 # Models Reference
 
-This document describes all data models in django-allauth-multitenant-sso.
+This document describes all data models in damsso.
 
 ## Tenant
 
@@ -35,7 +35,7 @@ Represents an organization with its own SSO configuration.
 ### Example
 
 ```python
-from django_allauth_multitenant_sso.models import Tenant
+from damsso.models import Tenant
 
 # Create a tenant
 tenant = Tenant.objects.create(
@@ -81,7 +81,7 @@ Links users to tenants with role-based access control.
 ### Example
 
 ```python
-from django_allauth_multitenant_sso.models import TenantUser
+from damsso.models import TenantUser
 
 # Create tenant membership
 tenant_user = TenantUser.objects.create(
@@ -140,7 +140,7 @@ Stores SSO configuration per tenant. Only one active provider per tenant.
 ### Example
 
 ```python
-from django_allauth_multitenant_sso.models import SSOProvider
+from damsso.models import SSOProvider
 
 # Create OIDC provider
 oidc_provider = SSOProvider.objects.create(
@@ -199,7 +199,7 @@ Manages user invitations to tenants.
 ### Example
 
 ```python
-from django_allauth_multitenant_sso.models import TenantInvitation
+from damsso.models import TenantInvitation
 from datetime import timedelta
 from django.utils import timezone
 
@@ -227,7 +227,7 @@ invitation.accept(user)
 ### Get all tenants for a user
 
 ```python
-from django_allauth_multitenant_sso.models import TenantUser
+from damsso.models import TenantUser
 
 user_tenants = Tenant.objects.filter(
     tenant_users__user=user,
@@ -239,7 +239,7 @@ user_tenants = Tenant.objects.filter(
 
 ```python
 from django.contrib.auth import get_user_model
-from django_allauth_multitenant_sso.models import TenantUser
+from damsso.models import TenantUser
 
 User = get_user_model()
 tenant_users = User.objects.filter(

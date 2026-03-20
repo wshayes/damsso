@@ -1,6 +1,6 @@
 # Management Commands
 
-This document describes the management commands included with django-allauth-multitenant-sso.
+This document describes the management commands included with damsso.
 
 ## Send Pending Invitations
 
@@ -243,7 +243,7 @@ For better performance, you can create Celery tasks:
 ```python
 # tasks.py
 from celery import shared_task
-from django_allauth_multitenant_sso.management.commands.send_pending_invitations import Command
+from damsso.management.commands.send_pending_invitations import Command
 
 @shared_task
 def send_pending_invitations_task():

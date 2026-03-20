@@ -206,7 +206,7 @@ python -m pytest tests/ -v --no-migrations
 
 ### Run with coverage:
 ```bash
-python -m pytest tests/ --cov=src/django_allauth_multitenant_sso --cov-report=term --no-migrations
+python -m pytest tests/ --cov=src/damsso --cov-report=term --no-migrations
 ```
 
 ### Run specific test file:

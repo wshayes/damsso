@@ -1,5 +1,5 @@
 """
-Tests for models in django-allauth-multitenant-sso.
+Tests for models in damsso.
 """
 
 from datetime import timedelta
@@ -9,7 +9,7 @@ from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.utils import timezone
 
-from django_allauth_multitenant_sso.models import SSOProvider, Tenant, TenantInvitation, TenantUser
+from damsso.models import SSOProvider, Tenant, TenantInvitation, TenantUser
 
 User = get_user_model()
 

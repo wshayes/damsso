@@ -1,6 +1,6 @@
 # Configuration Guide
 
-This guide covers all configuration options for django-allauth-multitenant-sso.
+This guide covers all configuration options for damsso.
 
 ## Basic Settings
 
@@ -13,7 +13,7 @@ INSTALLED_APPS = [
     'allauth',
     'allauth.account',
     'allauth.socialaccount',
-    'django_allauth_multitenant_sso',
+    'damsso',
 ]
 
 # Authentication backends
@@ -23,8 +23,8 @@ AUTHENTICATION_BACKENDS = [
 ]
 
 # Django-allauth adapters
-ACCOUNT_ADAPTER = 'django_allauth_multitenant_sso.adapters.MultiTenantAccountAdapter'
-SOCIALACCOUNT_ADAPTER = 'django_allauth_multitenant_sso.adapters.MultiTenantSocialAccountAdapter'
+ACCOUNT_ADAPTER = 'damsso.adapters.MultiTenantAccountAdapter'
+SOCIALACCOUNT_ADAPTER = 'damsso.adapters.MultiTenantSocialAccountAdapter'
 
 # Email-only authentication
 ACCOUNT_LOGIN_METHODS = {'email'}
@@ -140,7 +140,7 @@ Create your own templates in your project's `templates/` directory:
 ```
 your_project/
 └── templates/
-    └── allauth_multitenant_sso/
+    └── damsso/
         └── email/
             ├── invitation_subject.txt
             ├── invitation_message.txt
@@ -152,7 +152,7 @@ your_project/
 ```
 your_project/
 └── templates/
-    └── allauth_multitenant_sso/
+    └── damsso/
         ├── tenant_dashboard.html
         ├── manage_sso.html
         ├── test_sso.html
@@ -178,7 +178,7 @@ Available variables in email templates:
 
 ```python
 # myapp/adapters.py
-from django_allauth_multitenant_sso.adapters import MultiTenantAccountAdapter
+from damsso.adapters import MultiTenantAccountAdapter
 
 class MyAccountAdapter(MultiTenantAccountAdapter):
     def save_user(self, request, user, form, commit=True):
@@ -197,7 +197,7 @@ ACCOUNT_ADAPTER = 'myapp.adapters.MyAccountAdapter'
 
 ```python
 # myapp/adapters.py
-from django_allauth_multitenant_sso.adapters import MultiTenantSocialAccountAdapter
+from damsso.adapters import MultiTenantSocialAccountAdapter
 
 class MySocialAccountAdapter(MultiTenantSocialAccountAdapter):
     def pre_social_login(self, request, sociallogin):

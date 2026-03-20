@@ -1,4 +1,4 @@
-# Contributing to Django Allauth Multi-Tenant SSO
+# Contributing to DAMSSO (Django Allauth Multitenant SSO)
 
 Thank you for your interest in contributing! This document provides guidelines and instructions for contributing to this project.
 
@@ -14,8 +14,8 @@ Thank you for your interest in contributing! This document provides guidelines a
 
 1. **Fork and clone the repository:**
    ```bash
-   git clone https://github.com/yourusername/django-allauth-multitenant-sso.git
-   cd django-allauth-multitenant-sso
+   git clone https://github.com/yourusername/damsso.git
+   cd damsso
    ```
 
 2. **Install dependencies:**
@@ -61,7 +61,7 @@ pytest tests/ -v
 
 Run with coverage:
 ```bash
-pytest tests/ --cov=src/django_allauth_multitenant_sso --cov-report=term
+pytest tests/ --cov=src/damsso --cov-report=term
 ```
 
 ### 4. Run Pre-commit Hooks
@@ -145,7 +145,7 @@ pytest tests/test_models.py -v
 pytest tests/test_models.py::TestTenant::test_create_tenant -v
 
 # Run with coverage
-pytest tests/ --cov=src/django_allauth_multitenant_sso --cov-report=term
+pytest tests/ --cov=src/damsso --cov-report=term
 ```
 
 ## Documentation

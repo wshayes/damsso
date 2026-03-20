@@ -1,7 +1,7 @@
 [project]
-name = "django-allauth-multitenant-sso"
+name = "damsso"
 version = "0.1.0"
-description = "Django-allauth extension providing dynamic multi-tenant SSO support with OIDC and SAML"
+description = "DAMSSO (Django Allauth Multitenant SSO) - Django-allauth extension providing dynamic multi-tenant SSO support with OIDC and SAML"
 readme = "README.md"
 license = { text = "MIT" }
 authors = [
@@ -35,10 +35,10 @@ classifiers = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/wshayes/django-allauth-multitenant-sso"
-Documentation = "https://wshayes.github.io/django-allauth-multitenant-sso/"
-Repository = "https://github.com/wshayes/django-allauth-multitenant-sso"
-Issues = "https://github.com/wshayes/django-allauth-multitenant-sso/issues"
+Homepage = "https://github.com/wshayes/damsso"
+Documentation = "https://wshayes.github.io/damsso/"
+Repository = "https://github.com/wshayes/damsso"
+Issues = "https://github.com/wshayes/damsso/issues"
 
 [project.optional-dependencies]
 test = [
@@ -65,7 +65,7 @@ testpaths = ["tests"]
 addopts = "-v --tb=short"
 
 [tool.coverage.run]
-source = ["src/django_allauth_multitenant_sso"]
+source = ["src/damsso"]
 omit = ["*/tests/*", "*/migrations/*"]
 
 [tool.coverage.report]

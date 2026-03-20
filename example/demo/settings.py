@@ -58,7 +58,7 @@ INSTALLED_APPS = [
     "allauth.account",
     "allauth.socialaccount",
     # Multi-tenant SSO
-    "django_allauth_multitenant_sso",
+    "damsso",
 ]
 
 # Auto-enable django-rls when using PostgreSQL
@@ -67,7 +67,7 @@ if db_engine == "postgresql":
         import django_rls  # noqa: F401
 
         INSTALLED_APPS.insert(
-            INSTALLED_APPS.index("django_allauth_multitenant_sso"), "django_rls"
+            INSTALLED_APPS.index("damsso"), "django_rls"
         )
     except ImportError:
         pass
@@ -85,7 +85,7 @@ MIDDLEWARE = [
 
 # Auto-enable RLS middleware when django_rls is available and using PostgreSQL
 if db_engine == "postgresql" and "django_rls" in INSTALLED_APPS:
-    MIDDLEWARE.append("django_allauth_multitenant_sso.middleware.TenantRLSMiddleware")
+    MIDDLEWARE.append("damsso.middleware.TenantRLSMiddleware")
 
 ROOT_URLCONF = "demo.urls"
 
@@ -174,8 +174,8 @@ ACCOUNT_SIGNUP_FIELDS = ["email*", "password1*", "password2*"]  # Only require e
 ACCOUNT_USER_MODEL_USERNAME_FIELD = None  # Disable username field
 ACCOUNT_EMAIL_VERIFICATION = "optional"
 ACCOUNT_UNIQUE_EMAIL = True  # Ensure emails are unique
-ACCOUNT_ADAPTER = "django_allauth_multitenant_sso.adapters.MultiTenantAccountAdapter"
-SOCIALACCOUNT_ADAPTER = "django_allauth_multitenant_sso.adapters.MultiTenantSocialAccountAdapter"
+ACCOUNT_ADAPTER = "damsso.adapters.MultiTenantAccountAdapter"
+SOCIALACCOUNT_ADAPTER = "damsso.adapters.MultiTenantSocialAccountAdapter"
 
 # Multi-tenant SSO settings
 MULTITENANT_ALLOW_OPEN_SIGNUP = False  # Require invitations

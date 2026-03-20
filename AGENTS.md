@@ -30,7 +30,7 @@ uv pip install -r requirements.txt
 
 ## Project Structure
 
-- Source code is in `src/django_allauth_multitenant_sso/`
+- Source code is in `src/damsso/`
 - Tests are in `tests/`
 - Example project is in `example/`
 - Documentation files are in the root directory

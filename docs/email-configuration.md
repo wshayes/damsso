@@ -128,9 +128,9 @@ SERVER_EMAIL = 'server@yourdomain.com'
 
 The package includes three email templates:
 
-1. **Subject** - `allauth_multitenant_sso/email/invitation_subject.txt`
-2. **Plain Text Body** - `allauth_multitenant_sso/email/invitation_message.txt`
-3. **HTML Body** - `allauth_multitenant_sso/email/invitation_message.html`
+1. **Subject** - `damsso/email/invitation_subject.txt`
+2. **Plain Text Body** - `damsso/email/invitation_message.txt`
+3. **HTML Body** - `damsso/email/invitation_message.html`
 
 ### Overriding Templates
 
@@ -139,7 +139,7 @@ Create your own templates in your project's `templates/` directory:
 ```
 your_project/
 └── templates/
-    └── allauth_multitenant_sso/
+    └── damsso/
         └── email/
             ├── invitation_subject.txt
             ├── invitation_message.txt
@@ -200,8 +200,8 @@ send_mail(
 ### Test Invitation Email
 
 ```python
-from django_allauth_multitenant_sso.models import TenantInvitation
-from django_allauth_multitenant_sso.emails import send_invitation_email
+from damsso.models import TenantInvitation
+from damsso.emails import send_invitation_email
 
 # Get a pending invitation
 invitation = TenantInvitation.objects.filter(status='pending').first()
@@ -316,7 +316,7 @@ For advanced customization, create a custom email function:
 
 ```python
 # yourapp/emails.py
-from django_allauth_multitenant_sso.emails import send_invitation_email as base_send
+from damsso.emails import send_invitation_email as base_send
 
 def send_invitation_email(invitation, request=None):
     # Add custom logic here
@@ -332,11 +332,11 @@ For better performance, send emails asynchronously using Celery:
 ```python
 # tasks.py
 from celery import shared_task
-from django_allauth_multitenant_sso.emails import send_invitation_email
+from damsso.emails import send_invitation_email
 
 @shared_task
 def send_invitation_email_async(invitation_id):
-    from django_allauth_multitenant_sso.models import TenantInvitation
+    from damsso.models import TenantInvitation
     invitation = TenantInvitation.objects.get(id=invitation_id)
     return send_invitation_email(invitation)
 ```

@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Manage Users - {{ tenant.name }}</title>
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: #f5f5f5;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        .header {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .header h1 {
+            color: #667eea;
+            margin-bottom: 10px;
+        }
+        .nav {
+            background: white;
+            padding: 15px 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .nav a {
+            display: inline-block;
+            padding: 10px 20px;
+            margin-right: 10px;
+            text-decoration: none;
+            color: #667eea;
+            border-radius: 4px;
+            transition: background 0.3s;
+        }
+        .nav a:hover, .nav a.active {
+            background: #667eea;
+            color: white;
+        }
+        .card {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .card h2 {
+            color: #667eea;
+            margin-bottom: 20px;
+        }
+        .search-filter-bar {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 25px;
+            flex-wrap: wrap;
+        }
+        .search-box {
+            flex: 1;
+            min-width: 300px;
+        }
+        .search-box input {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 1em;
+            transition: border-color 0.3s;
+        }
+        .search-box input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        .filter-select {
+            min-width: 200px;
+        }
+        .filter-select select {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 1em;
+            background: white;
+            cursor: pointer;
+        }
+        .stats {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 6px;
+            margin-bottom: 20px;
+        }
+        .stat-item {
+            font-size: 0.95em;
+            color: #666;
+        }
+        .stat-item strong {
+            color: #667eea;
+            font-size: 1.2em;
+            margin-right: 5px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        thead {
+            background: #f8f9fa;
+        }
+        th {
+            text-align: left;
+            padding: 15px;
+            font-weight: 600;
+            color: #666;
+            border-bottom: 2px solid #e0e0e0;
+        }
+        td {
+            padding: 15px;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        tr:hover {
+            background: #f8f9fa;
+        }
+        .user-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: #667eea;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            font-size: 1.1em;
+        }
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .user-details .name {
+            font-weight: 600;
+            color: #333;
+        }
+        .user-details .email {
+            font-size: 0.9em;
+            color: #666;
+        }
+        .badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 0.85em;
+            font-weight: 600;
+        }
+        .badge.owner {
+            background: #e3f2fd;
+            color: #1976d2;
+        }
+        .badge.admin {
+            background: #f3e5f5;
+            color: #7b1fa2;
+        }
+        .badge.member {
+            background: #e8f5e9;
+            color: #388e3c;
+        }
+        .badge.inactive {
+            background: #ffebee;
+            color: #c62828;
+        }
+        .pagination {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 10px;
+            margin-top: 25px;
+            padding-top: 25px;
+            border-top: 1px solid #e0e0e0;
+        }
+        .pagination a, .pagination span {
+            padding: 8px 16px;
+            border: 1px solid #e0e0e0;
+            border-radius: 6px;
+            text-decoration: none;
+            color: #667eea;
+            background: white;
+            transition: all 0.3s;
+        }
+        .pagination a:hover {
+            background: #667eea;
+            color: white;
+            border-color: #667eea;
+        }
+        .pagination .current {
+            background: #667eea;
+            color: white;
+            border-color: #667eea;
+        }
+        .pagination .disabled {
+            color: #ccc;
+            cursor: not-allowed;
+        }
+        .pagination .disabled:hover {
+            background: white;
+            color: #ccc;
+        }
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #666;
+        }
+        .empty-state svg {
+            width: 80px;
+            height: 80px;
+            margin-bottom: 20px;
+            opacity: 0.3;
+        }
+        .htmx-indicator {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .loading {
+            opacity: 0.6;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>👥 Manage Users</h1>
+            <p>{{ tenant.name }} - View and manage organization members</p>
+            {% include "damsso/_user_info.html" %}
+        </div>
+
+        <div class="nav">
+            <a href="{% url 'damsso:tenant_dashboard' tenant.slug %}">Dashboard</a>
+            <a href="{% url 'damsso:manage_sso' tenant.slug %}">SSO Configuration</a>
+            <a href="{% url 'damsso:manage_users' tenant.slug %}" class="active">Manage Users</a>
+            <a href="{% url 'damsso:invite_user' tenant.slug %}">Invite Users</a>
+            <a href="{% url 'home' %}">Home</a>
+        </div>
+
+        <div class="card">
+            <h2>Organization Members</h2>
+
+            <div class="search-filter-bar">
+                <div class="search-box">
+                    <input
+                        type="search"
+                        name="q"
+                        placeholder="Search by name or email..."
+                        value="{{ search_query }}"
+                        hx-get="{% url 'damsso:manage_users' tenant.slug %}"
+                        hx-trigger="keyup changed delay:300ms, search"
+                        hx-target="#user-list"
+                        hx-indicator=".htmx-indicator"
+                        hx-include="[name='role']">
+                </div>
+
+                <div class="filter-select">
+                    <select
+                        name="role"
+                        hx-get="{% url 'damsso:manage_users' tenant.slug %}"
+                        hx-trigger="change"
+                        hx-target="#user-list"
+                        hx-indicator=".htmx-indicator"
+                        hx-include="[name='q']">
+                        <option value="">All Roles</option>
+                        {% for value, label in role_choices %}
+                        <option value="{{ value }}" {% if role_filter == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <span class="htmx-indicator"></span>
+            </div>
+
+            <div class="stats">
+                <div class="stat-item">
+                    <strong>{{ total_count }}</strong> user{{ total_count|pluralize }}
+                    {% if search_query or role_filter %}
+                    (filtered)
+                    {% endif %}
+                </div>
+                {% if page_obj.paginator.num_pages > 1 %}
+                <div class="stat-item">
+                    Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
+                </div>
+                {% endif %}
+            </div>
+
+            <div id="user-list">
+                {% include "damsso/_user_list.html" %}
+            </div>
+        </div>
+    </div>
+</body>
+</html>

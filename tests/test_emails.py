@@ -1,16 +1,16 @@
 """
-Tests for email functionality in django-allauth-multitenant-sso.
+Tests for email functionality in damsso.
 """
 import pytest
 from django.core import mail
 from django.test import RequestFactory
-from django_allauth_multitenant_sso.emails import (
+from damsso.emails import (
     send_invitation_email,
     send_invitation_reminder_email,
     send_invitation_accepted_notification,
     send_bulk_invitations
 )
-from django_allauth_multitenant_sso.models import TenantInvitation
+from damsso.models import TenantInvitation
 
 
 class TestSendInvitationEmail:
@@ -60,7 +60,7 @@ class TestSendInvitationEmail:
 
     def test_handles_email_send_failure(self, invitation):
         """Test handles email backend failure gracefully."""
-        with patch('django_allauth_multitenant_sso.emails.EmailMultiAlternatives.send') as mock_send:
+        with patch('damsso.emails.EmailMultiAlternatives.send') as mock_send:
             mock_send.side_effect = Exception('SMTP error')
             result = send_invitation_email(invitation)
             assert result is False
@@ -189,7 +189,7 @@ class TestSendBulkInvitations:
             for i in range(3)
         ]
 
-        with patch('django_allauth_multitenant_sso.emails.send_invitation_email') as mock_send:
+        with patch('damsso.emails.send_invitation_email') as mock_send:
             # First succeeds, second fails, third succeeds
             mock_send.side_effect = [True, False, True]
 

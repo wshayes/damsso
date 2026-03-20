@@ -1,16 +1,16 @@
 """
-Tests for SSO providers in django-allauth-multitenant-sso.
+Tests for SSO providers in damsso.
 """
 import pytest
 import responses
 from unittest.mock import Mock, patch
 from django.test import RequestFactory
-from django_allauth_multitenant_sso.providers import (
+from damsso.providers import (
     OIDCProviderClient,
     SAMLProviderClient,
     get_provider_client
 )
-from django_allauth_multitenant_sso.models import SSOProvider
+from damsso.models import SSOProvider
 
 
 class TestOIDCProviderClient:

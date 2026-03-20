@@ -1,6 +1,6 @@
 # Usage Guide
 
-This guide explains how to use django-allauth-multitenant-sso in your Django project.
+This guide explains how to use damsso in your Django project.
 
 ## Creating a Tenant
 
@@ -27,7 +27,7 @@ This guide explains how to use django-allauth-multitenant-sso in your Django pro
 
 ```python
 from django.contrib.auth import get_user_model
-from django_allauth_multitenant_sso.models import Tenant, TenantUser
+from damsso.models import Tenant, TenantUser
 
 User = get_user_model()
 
@@ -182,8 +182,8 @@ If SSO is enforced for a tenant:
 ### Via Django Shell
 
 ```python
-from django_allauth_multitenant_sso.models import TenantInvitation
-from django_allauth_multitenant_sso.emails import send_invitation_email
+from damsso.models import TenantInvitation
+from damsso.emails import send_invitation_email
 
 invitation = TenantInvitation.objects.create(
     tenant=tenant,
