@@ -28,10 +28,15 @@ from .forms import (
     TenantForm,
     TenantInvitationForm,
 )
-from .models import SSOProvider, Tenant, TenantInvitation, TenantUser
+from .models import SSOProvider, TenantInvitation, TenantUser, get_tenant_model
 from .providers import OIDCProviderClient, SAMLProviderClient, get_provider_client
 
 User = get_user_model()
+
+
+def _get_tenant_or_404(**kwargs):
+    """Shortcut: get_object_or_404 against the configured Tenant model."""
+    return get_object_or_404(get_tenant_model(), **kwargs)
 
 
 # ============================================================================
@@ -48,7 +53,7 @@ def tenant_login(request, tenant_slug):
     2. SSO Optional: Show both SSO and email/password options
     3. SSO Enforced: Redirect directly to SSO login
     """
-    tenant = get_object_or_404(Tenant, slug=tenant_slug, is_active=True)
+    tenant = _get_tenant_or_404(slug=tenant_slug, is_active=True)
     sso_provider = tenant.get_active_sso_provider()
 
     # Scenario 3: SSO Enforced - redirect directly to SSO
@@ -117,7 +122,7 @@ def tenant_logout(request, tenant_slug):
     """
     Logout from tenant session.
     """
-    tenant = get_object_or_404(Tenant, slug=tenant_slug, is_active=True)
+    tenant = _get_tenant_or_404(slug=tenant_slug, is_active=True)
 
     # Log the user out
     logout(request)
@@ -143,7 +148,7 @@ def sso_login(request, tenant_slug):
     """
     Initiate SSO login for a tenant.
     """
-    tenant = get_object_or_404(Tenant, slug=tenant_slug, is_active=True)
+    tenant = _get_tenant_or_404(slug=tenant_slug, is_active=True)
 
     if not tenant.sso_enabled:
         messages.error(request, _("SSO is not enabled for this organization."))
@@ -221,7 +226,7 @@ def oidc_callback(request, tenant_slug):
     """
     Handle OIDC callback after authentication.
     """
-    tenant = get_object_or_404(Tenant, slug=tenant_slug, is_active=True)
+    tenant = _get_tenant_or_404(slug=tenant_slug, is_active=True)
     provider_id = request.session.get("oidc_provider_id")
 
     if not provider_id:
@@ -301,11 +306,11 @@ def oidc_callback(request, tenant_slug):
 
 @csrf_exempt
 @require_http_methods(["POST"])
-def saml_acs(request, tenant_id):
+def saml_acs(request, tenant_slug):
     """
     SAML Assertion Consumer Service (ACS) endpoint.
     """
-    tenant = get_object_or_404(Tenant, id=tenant_id, is_active=True)
+    tenant = _get_tenant_or_404(slug=tenant_slug, is_active=True)
     provider_id = request.session.get("saml_provider_id")
 
     if not provider_id:
@@ -378,11 +383,11 @@ def saml_acs(request, tenant_id):
         return redirect("account_login")
 
 
-def saml_metadata(request, tenant_id):
+def saml_metadata(request, tenant_slug):
     """
     Generate SAML metadata for Service Provider.
     """
-    tenant = get_object_or_404(Tenant, id=tenant_id, is_active=True)
+    tenant = _get_tenant_or_404(slug=tenant_slug, is_active=True)
     sso_provider = tenant.get_active_sso_provider()
 
     if not sso_provider or sso_provider.protocol != "saml":
@@ -413,7 +418,7 @@ def tenant_dashboard(request, tenant_slug):
     """
     Tenant admin dashboard.
     """
-    tenant = get_object_or_404(Tenant, slug=tenant_slug)
+    tenant = _get_tenant_or_404(slug=tenant_slug)
     tenant_user = get_object_or_404(TenantUser, user=request.user, tenant=tenant)
 
     # Handle signup token generation/regeneration
@@ -444,7 +449,7 @@ def manage_users(request, tenant_slug):
     """
     Manage tenant users with search, filtering, and pagination.
     """
-    tenant = get_object_or_404(Tenant, slug=tenant_slug)
+    tenant = _get_tenant_or_404(slug=tenant_slug)
 
     # Get query parameters
     search_query = request.GET.get("q", "").strip()
@@ -495,7 +500,7 @@ def manage_sso_provider(request, tenant_slug):
     """
     Manage SSO provider for tenant.
     """
-    tenant = get_object_or_404(Tenant, slug=tenant_slug)
+    tenant = _get_tenant_or_404(slug=tenant_slug)
     sso_provider = tenant.sso_providers.first()
 
     # Handle protocol selection form submission (separate from config forms)
@@ -576,8 +581,8 @@ def manage_sso_provider(request, tenant_slug):
     oidc_redirect_uri = request.build_absolute_uri(
         reverse("damsso:oidc_callback", args=[tenant_slug])
     )
-    saml_acs_url = request.build_absolute_uri(reverse("damsso:saml_acs", args=[tenant.id]))
-    saml_metadata_url = request.build_absolute_uri(reverse("damsso:saml_metadata", args=[tenant.id]))
+    saml_acs_url = request.build_absolute_uri(reverse("damsso:saml_acs", args=[tenant.slug]))
+    saml_metadata_url = request.build_absolute_uri(reverse("damsso:saml_metadata", args=[tenant.slug]))
 
     context = {
         "tenant": tenant,
@@ -599,7 +604,7 @@ def test_sso_provider(request, tenant_slug):
     """
     Test SSO provider configuration.
     """
-    tenant = get_object_or_404(Tenant, slug=tenant_slug)
+    tenant = _get_tenant_or_404(slug=tenant_slug)
     sso_provider = tenant.get_active_sso_provider()
 
     if not sso_provider:
@@ -643,7 +648,7 @@ def test_user_sso_login(request, tenant_slug):
     """
     Test if a specific user can login via SSO and provide diagnostics.
     """
-    tenant = get_object_or_404(Tenant, slug=tenant_slug)
+    tenant = _get_tenant_or_404(slug=tenant_slug)
     sso_provider = tenant.get_active_sso_provider()
 
     test_results = None
@@ -720,7 +725,7 @@ def toggle_sso(request, tenant_slug):
     """
     Enable/disable SSO for tenant.
     """
-    tenant = get_object_or_404(Tenant, slug=tenant_slug)
+    tenant = _get_tenant_or_404(slug=tenant_slug)
 
     if request.method == "POST":
         action = request.POST.get("action")
@@ -761,7 +766,7 @@ def invite_user(request, tenant_slug):
     """
     Invite user to tenant.
     """
-    tenant = get_object_or_404(Tenant, slug=tenant_slug)
+    tenant = _get_tenant_or_404(slug=tenant_slug)
 
     if request.method == "POST":
         form = TenantInvitationForm(request.POST)
@@ -806,7 +811,7 @@ def tenant_signup(request, token):
     """
     Handle tenant-specific signup with verification token.
     """
-    tenant = get_object_or_404(Tenant, signup_token=token, is_active=True)
+    tenant = _get_tenant_or_404(signup_token=token, is_active=True)
 
     # Store tenant signup token in session
     request.session["tenant_signup_token"] = token
@@ -1022,7 +1027,7 @@ def _process_sso_user(request, sso_provider, userinfo):
         tenant_user.save()
 
     # Store tenant in session
-    request.session["current_tenant_id"] = str(sso_provider.tenant.id)
+    request.session["current_tenant_id"] = str(sso_provider.tenant.pk)
 
     return user
 

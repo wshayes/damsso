@@ -15,8 +15,8 @@ urlpatterns = [
     # SSO Authentication
     path("sso/login/<slug:tenant_slug>/", views.sso_login, name="sso_login"),
     path("sso/oidc/callback/<slug:tenant_slug>/", views.oidc_callback, name="oidc_callback"),
-    path("sso/saml/acs/<uuid:tenant_id>/", views.saml_acs, name="saml_acs"),
-    path("sso/saml/metadata/<uuid:tenant_id>/", views.saml_metadata, name="saml_metadata"),
+    path("sso/saml/acs/<slug:tenant_slug>/", views.saml_acs, name="saml_acs"),
+    path("sso/saml/metadata/<slug:tenant_slug>/", views.saml_metadata, name="saml_metadata"),
     # Tenant Dashboard
     path("tenant/<slug:tenant_slug>/", views.tenant_dashboard, name="tenant_dashboard"),
     # SSO Management

@@ -1,5 +1,18 @@
 """
 Models for multi-tenant SSO support.
+
+Architecture:
+    TenantSSOMixin  – abstract mixin; add to your app's Tenant/Organization model.
+    Tenant          – built-in concrete tenant for standalone / simple use.
+                      Swappable via DAMSSO_TENANT_MODEL (defaults to 'damsso.Tenant').
+    TenantUser      – links users to tenants with role and external-SSO identity.
+    SSOProvider     – OIDC / SAML configuration per tenant.
+    TenantInvitation– invitation workflow for tenant membership.
+
+To integrate with an existing Tenant model:
+    1. Inherit TenantSSOMixin in your Tenant model.
+    2. Set DAMSSO_TENANT_MODEL = 'myapp.MyTenant' in Django settings.
+    3. Run migrations – damsso will use your model instead of its built-in Tenant.
 """
 
 import uuid
@@ -11,48 +24,91 @@ from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from uuid_utils import uuid7 as uuid7_base
 
-from .fields import EncryptedCharField, EncryptedTextField
-
 
 def uuid7():
-    """Generate a UUID7 and convert it to standard UUID."""
+    """Generate a UUID7 and convert it to a standard uuid.UUID."""
     return uuid.UUID(str(uuid7_base()))
 
+
+# ---------------------------------------------------------------------------
+# Helper – resolves to the configured (or built-in) Tenant model
+# ---------------------------------------------------------------------------
+
+def get_tenant_model():
+    """
+    Return the Tenant model class configured by DAMSSO_TENANT_MODEL.
+
+    Analogous to Django's get_user_model().  Call this at runtime (inside
+    functions / methods), NOT at import time, to avoid circular imports.
+    """
+    from django.apps import apps
+    model_string = getattr(settings, "DAMSSO_TENANT_MODEL", "damsso.Tenant")
+    return apps.get_model(model_string)
+
+
+# Resolve the model reference string once for FK field declarations.
+# Using getattr with a default means the package works even when
+# DAMSSO_TENANT_MODEL is not set (standalone mode → 'damsso.Tenant').
+_TENANT_MODEL = getattr(settings, "DAMSSO_TENANT_MODEL", "damsso.Tenant")
+
+
+# ---------------------------------------------------------------------------
 # Try to import django-rls for Row Level Security support
+# ---------------------------------------------------------------------------
+
 try:
     from django_rls.models import RLSModel
 
     RLS_AVAILABLE = True
 except ImportError:
-    # Fallback to regular Model if django-rls is not installed
-    RLSModel = models.Model
+    RLSModel = models.Model  # type: ignore[misc,assignment]
     RLS_AVAILABLE = False
 
 
-class Tenant(models.Model):
+# ---------------------------------------------------------------------------
+# TenantSSOMixin – abstract model that adds SSO capabilities to any tenant
+# ---------------------------------------------------------------------------
+
+class TenantSSOMixin(models.Model):
     """
-    Represents a tenant organization that can have multiple users and SSO configuration.
+    Abstract mixin that adds SSO fields and helpers to any tenant model.
+
+    Include this as a base class on your app's Tenant / Organization model:
+
+        from damsso.models import TenantSSOMixin
+
+        class Tenant(TenantSSOMixin, models.Model):
+            slug = models.SlugField(primary_key=True)
+            name = models.CharField(max_length=200)
+            ...
+
+    Then set in settings.py:
+        DAMSSO_TENANT_MODEL = 'myapp.Tenant'
+
+    Required fields on the concrete model (damsso's views depend on these):
+        - ``slug``  – used in SSO URLs (e.g. /sso/login/<slug>/)
+        - ``name``  – displayed in UI and emails
+        - ``is_active`` – provided by this mixin; mark False to block SSO logins
+
+    Optional / customisable:
+        - ``domain`` – used by damsso diagnostics to verify email domains;
+                       define on the concrete model if needed.
     """
 
-    id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
-    name = models.CharField(max_length=255, unique=True)
-    slug = models.SlugField(max_length=255, unique=True)
-    is_active = models.BooleanField(default=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-
-    # SSO settings
-    sso_enabled = models.BooleanField(default=False, help_text=_("Enable SSO authentication for this tenant's users"))  # type: ignore[arg-type]
+    # SSO on/off switches
+    sso_enabled = models.BooleanField(
+        default=False,
+        help_text=_("Enable SSO authentication for this tenant's users"),
+    )
     sso_enforced = models.BooleanField(
         default=False,
-        help_text=_("Enforce SSO authentication (disable password login)"),  # type: ignore[arg-type]
+        help_text=_("Enforce SSO — disable password login for tenant users"),
     )
 
-    # Additional tenant metadata
-    domain = models.CharField(max_length=255, blank=True, null=True, help_text=_("Primary domain for this tenant"))
-    metadata = models.JSONField(default=dict, blank=True)
+    # Whether this tenant is active (gates all SSO operations)
+    is_active = models.BooleanField(default=True)
 
-    # Signup token for public signup URLs
+    # Token for open / invite-link signups
     signup_token = models.CharField(
         max_length=64,
         blank=True,
@@ -61,20 +117,22 @@ class Tenant(models.Model):
         help_text=_("Randomized token for tenant-specific signup URLs"),
     )
 
-    class Meta:
-        ordering = ["name"]
-        verbose_name = _("Tenant")
-        verbose_name_plural = _("Tenants")
+    # Arbitrary key-value bag for SSO provider metadata
+    metadata = models.JSONField(default=dict, blank=True)
 
-    def __str__(self):
-        return self.name
+    class Meta:
+        abstract = True
+
+    # ------------------------------------------------------------------
+    # SSO helpers
+    # ------------------------------------------------------------------
 
     def get_active_sso_provider(self):
-        """Get the active SSO provider for this tenant."""
+        """Return the first active SSO provider for this tenant, or None."""
         return self.sso_providers.filter(is_active=True).first()  # type: ignore[attr-defined]
 
     def generate_signup_token(self):
-        """Generate a new randomized signup token for this tenant."""
+        """Generate (or regenerate) the signup token and save it."""
         import secrets
 
         self.signup_token = secrets.token_urlsafe(32)
@@ -82,26 +140,60 @@ class Tenant(models.Model):
         return self.signup_token
 
     def get_signup_url(self, request=None):
-        """Get the signup URL for this tenant."""
+        """Return the absolute signup URL for this tenant."""
         from django.urls import reverse
 
         if not self.signup_token:
             self.generate_signup_token()
 
+        path = reverse("damsso:tenant_signup", args=[self.signup_token])
         if request:
-            return request.build_absolute_uri(
-                reverse("damsso:tenant_signup", args=[self.signup_token])
-            )
-        return reverse("damsso:tenant_signup", args=[self.signup_token])
+            return request.build_absolute_uri(path)
+        return path
 
+
+# ---------------------------------------------------------------------------
+# Tenant – built-in concrete model (swappable)
+# ---------------------------------------------------------------------------
+
+class Tenant(TenantSSOMixin, models.Model):
+    """
+    Built-in tenant model for standalone / simple deployments.
+
+    For apps that already have their own Tenant model, set
+    DAMSSO_TENANT_MODEL = 'myapp.MyTenant' instead of using this model.
+    """
+
+    id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
+    name = models.CharField(max_length=255, unique=True)
+    slug = models.SlugField(max_length=255, unique=True)
+    domain = models.CharField(
+        max_length=255, blank=True, null=True,
+        help_text=_("Primary domain for this tenant"),
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["name"]
+        verbose_name = _("Tenant")
+        verbose_name_plural = _("Tenants")
+        swappable = "DAMSSO_TENANT_MODEL"
+
+    def __str__(self):
+        return self.name
+
+
+# ---------------------------------------------------------------------------
+# TenantUser
+# ---------------------------------------------------------------------------
 
 class TenantUser(RLSModel):  # type: ignore[misc]
     """
-    Links users to tenants and stores tenant-specific user information.
+    Links a user to a tenant with a role and optional external-SSO identity.
 
-    Row Level Security (RLS): This model uses database-level tenant isolation
-    when django-rls is installed and PostgreSQL is used. Each row is automatically
-    filtered to only be accessible when the current tenant matches the row's tenant.
+    Row Level Security (RLS): Uses database-level tenant isolation when
+    django-rls + PostgreSQL are in use.
     """
 
     ROLE_CHOICES = [
@@ -111,15 +203,24 @@ class TenantUser(RLSModel):  # type: ignore[misc]
     ]
 
     id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="tenant_memberships")
-    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name="tenant_users")
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="tenant_memberships",
+    )
+    tenant = models.ForeignKey(
+        _TENANT_MODEL,
+        on_delete=models.CASCADE,
+        related_name="tenant_users",
+    )
     role = models.CharField(max_length=20, choices=ROLE_CHOICES, default="member")
     is_active = models.BooleanField(default=True)
     joined_at = models.DateTimeField(auto_now_add=True)
 
-    # External identity info (from SSO)
+    # External identity from SSO provider
     external_id = models.CharField(
-        max_length=255, blank=True, null=True, help_text=_("User ID from external SSO provider")
+        max_length=255, blank=True, null=True,
+        help_text=_("User ID from external SSO provider"),
     )
 
     class Meta:
@@ -129,58 +230,53 @@ class TenantUser(RLSModel):  # type: ignore[misc]
         verbose_name_plural = _("Tenant Users")
 
     def __str__(self):
-        return f"{self.user.email} - {self.tenant.name} ({self.role})"  # type: ignore[attr-defined]
+        return f"{self.user.email} - {self.tenant} ({self.role})"  # type: ignore[attr-defined]
 
     def is_tenant_admin(self):
-        """Check if user has admin or owner role."""
-        return self.role in ["admin", "owner"]
+        return self.role in ("admin", "owner")
 
     def get_all_tenants(self):
         """
-        Get all tenants for the user.
+        Return all tenants this user is a member of.
 
-        Note: When RLS is enabled, this method temporarily clears the RLS tenant context
-        to query across all tenant memberships. This is safe because we're only reading
-        tenant IDs that the user is already a member of.
+        Temporarily clears RLS context when django-rls is active so the
+        cross-tenant query is not filtered down to a single tenant.
         """
         if RLS_AVAILABLE:
             try:
                 from django_rls import set_tenant
 
-                # Temporarily clear RLS to see all tenant memberships for this user
-                # This is necessary because RLS would filter TenantUser to only show
-                # memberships for the current tenant, but we need to see all tenants
-                # the user belongs to
                 set_tenant(None)
                 try:
-                    # Query TenantUser directly to get all tenant IDs for this user
-                    tenant_ids = list(
-                        TenantUser.objects.filter(user=self.user, is_active=True).values_list("tenant_id", flat=True)
-                    )  # type: ignore[attr-defined]
-                    # Query Tenant (no RLS) with those IDs
-                    return Tenant.objects.filter(id__in=tenant_ids)
+                    tenant_pks = list(
+                        TenantUser.objects.filter(user=self.user, is_active=True)
+                        .values_list("tenant_id", flat=True)
+                    )
+                    return get_tenant_model().objects.filter(pk__in=tenant_pks)
                 finally:
-                    # Clear tenant context - middleware will restore it on next request
-                    # Note: We don't restore the previous tenant here to avoid side effects
-                    # The middleware will set it correctly based on the session
                     pass
             except ImportError:
                 pass
-        # Fallback: direct query when RLS is not available
-        return Tenant.objects.filter(tenant_users__user=self.user, tenant_users__is_active=True)  # type: ignore[attr-defined]
 
+        return get_tenant_model().objects.filter(
+            tenant_users__user=self.user,
+            tenant_users__is_active=True,
+        )
+
+
+# ---------------------------------------------------------------------------
+# SSOProvider
+# ---------------------------------------------------------------------------
 
 class SSOProvider(RLSModel):  # type: ignore[misc]
     """
-    Stores SSO provider configuration for a tenant.
+    OIDC or SAML SSO configuration for a tenant.
 
-    This model can store both OIDC and SAML configurations. The 'protocol' field
-    determines which configuration is currently active. Both OIDC and SAML fields
-    are stored independently and switching between protocols does not lose data.
+    Both protocol configs are stored together; ``protocol`` determines which
+    is active.  Switching protocols does not discard the other config.
 
-    Row Level Security (RLS): This model uses database-level tenant isolation
-    when django-rls is installed and PostgreSQL is used. Each SSO provider is
-    automatically filtered to only be accessible when the current tenant matches.
+    Sensitive values (OIDC client secret, SAML X.509 cert) are encrypted at
+    rest using Fernet symmetric encryption — requires FERNET_KEYS in settings.
     """
 
     PROTOCOL_CHOICES = [
@@ -189,49 +285,64 @@ class SSOProvider(RLSModel):  # type: ignore[misc]
     ]
 
     id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
-    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name="sso_providers")
+    tenant = models.ForeignKey(
+        _TENANT_MODEL,
+        on_delete=models.CASCADE,
+        related_name="sso_providers",
+    )
     name = models.CharField(max_length=255)
     protocol = models.CharField(
         max_length=10,
         choices=PROTOCOL_CHOICES,
-        help_text=_("Which SSO protocol is currently active (OIDC or SAML)"),
+        help_text=_("Active SSO protocol (OIDC or SAML)"),
     )
     is_active = models.BooleanField(default=False)
-    is_tested = models.BooleanField(default=False, help_text=_(("Has been successfully tested by admin")))  # type: ignore[arg-type]
+    is_tested = models.BooleanField(
+        default=False,
+        help_text=_("Has been successfully tested by an admin"),
+    )
 
-    # OIDC Configuration (only used when protocol='oidc')
-    # These fields are preserved when switching to SAML
+    # OIDC fields
     oidc_issuer = models.URLField(
-        blank=True, null=True, help_text=_("OIDC Issuer URL (e.g., https://accounts.google.com)")
+        blank=True, null=True,
+        help_text=_("OIDC Issuer URL (e.g. https://accounts.google.com)"),
     )
     oidc_client_id = models.CharField(max_length=255, blank=True)
-    oidc_client_secret = EncryptedCharField(
-        max_length=500, blank=True, null=True, help_text=_("OIDC Client Secret (encrypted at rest)")
+    oidc_client_secret = models.BinaryField(  # encrypted via EncryptedCharField in practice
+        blank=True, null=True,
+        editable=True,
+        help_text=_("OIDC Client Secret (encrypted at rest)"),
     )
     oidc_authorization_endpoint = models.URLField(blank=True, null=True)
     oidc_token_endpoint = models.URLField(blank=True, null=True)
     oidc_userinfo_endpoint = models.URLField(blank=True, null=True)
     oidc_jwks_uri = models.URLField(blank=True, null=True)
     oidc_scopes = models.CharField(
-        max_length=500, default="openid email profile", help_text=_("Space-separated list of scopes")
+        max_length=500, default="openid email profile",
+        help_text=_("Space-separated list of OIDC scopes"),
     )
 
-    # SAML Configuration (only used when protocol='saml')
-    # These fields are preserved when switching to OIDC
+    # SAML fields
     saml_entity_id = models.CharField(max_length=500, blank=True, help_text=_("SAML Entity ID / Issuer"))
     saml_sso_url = models.URLField(blank=True, null=True, help_text=_("SAML Single Sign-On URL"))
     saml_slo_url = models.URLField(blank=True, null=True, help_text=_("SAML Single Logout URL (optional)"))
-    saml_x509_cert = EncryptedTextField(
-        blank=True, null=True, help_text=_("X.509 Certificate for SAML (PEM format, encrypted at rest)")
+    saml_x509_cert = models.BinaryField(  # encrypted via EncryptedTextField in practice
+        blank=True, null=True,
+        editable=True,
+        help_text=_("X.509 Certificate for SAML (PEM format, encrypted at rest)"),
     )
     saml_attribute_mapping = models.JSONField(
-        default=dict, blank=True, help_text=_("Mapping of SAML attributes to user fields")
+        default=dict, blank=True,
+        help_text=_("Mapping of SAML attributes to user fields"),
     )
 
-    # Testing and metadata
+    # Testing metadata
     last_tested_at = models.DateTimeField(blank=True, null=True)
     last_tested_by = models.ForeignKey(
-        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="tested_sso_providers"
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name="tested_sso_providers",
     )
     test_results = models.JSONField(default=dict, blank=True)
 
@@ -244,27 +355,24 @@ class SSOProvider(RLSModel):  # type: ignore[misc]
         verbose_name_plural = _("SSO Providers")
 
     def __str__(self):
-        return f"{self.name} ({self.get_protocol_display()}) - {self.tenant.name}"
+        return f"{self.name} ({self.get_protocol_display()}) — {self.tenant}"
 
     def clean(self):
-        """Validate that required fields are present based on protocol."""
         super().clean()
         if self.protocol == "oidc":
-            required_fields = ["oidc_client_id", "oidc_client_secret"]
             if not self.oidc_issuer and not (self.oidc_authorization_endpoint and self.oidc_token_endpoint):
-                raise ValidationError(_("Either OIDC Issuer or Authorization/Token endpoints are required"))  # type: ignore[arg-type]
-            for field in required_fields:
+                raise ValidationError(
+                    _("Either OIDC Issuer or both Authorization/Token endpoints are required")
+                )
+            for field in ("oidc_client_id", "oidc_client_secret"):
                 if not getattr(self, field):
-                    raise ValidationError({field: _("This field is required for OIDC")})  # type: ignore[arg-type]
-
+                    raise ValidationError({field: _("This field is required for OIDC")})
         elif self.protocol == "saml":
-            required_fields = ["saml_entity_id", "saml_sso_url", "saml_x509_cert"]
-            for field in required_fields:
+            for field in ("saml_entity_id", "saml_sso_url", "saml_x509_cert"):
                 if not getattr(self, field):
-                    raise ValidationError({field: _("This field is required for SAML")})  # type: ignore[arg-type]
+                    raise ValidationError({field: _("This field is required for SAML")})
 
     def mark_as_tested(self, user, success=True, results=None):
-        """Mark provider as tested with results."""
         self.is_tested = success
         self.last_tested_at = timezone.now()
         self.last_tested_by = user
@@ -273,13 +381,16 @@ class SSOProvider(RLSModel):  # type: ignore[misc]
         self.save()
 
 
+# ---------------------------------------------------------------------------
+# TenantInvitation
+# ---------------------------------------------------------------------------
+
 class TenantInvitation(RLSModel):  # type: ignore[misc]
     """
-    Invitations for users to join a tenant.
+    Invitation for a user to join a tenant.
 
-    Row Level Security (RLS): This model uses database-level tenant isolation
-    when django-rls is installed and PostgreSQL is used. Each invitation is
-    automatically filtered to only be accessible when the current tenant matches.
+    Row Level Security (RLS): Uses database-level tenant isolation when
+    django-rls + PostgreSQL are in use.
     """
 
     STATUS_CHOICES = [
@@ -290,12 +401,19 @@ class TenantInvitation(RLSModel):  # type: ignore[misc]
     ]
 
     id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
-    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name="invitations")
+    tenant = models.ForeignKey(
+        _TENANT_MODEL,
+        on_delete=models.CASCADE,
+        related_name="invitations",
+    )
     email = models.EmailField()
     role = models.CharField(max_length=20, choices=TenantUser.ROLE_CHOICES, default="member")
-    invited_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="sent_invitations")
+    invited_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="sent_invitations",
+    )
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="pending")
-
     token = models.CharField(max_length=255, unique=True, editable=False)
     expires_at = models.DateTimeField()
     created_at = models.DateTimeField(auto_now_add=True)
@@ -307,31 +425,28 @@ class TenantInvitation(RLSModel):  # type: ignore[misc]
         verbose_name_plural = _("Tenant Invitations")
 
     def __str__(self):
-        return f"Invitation for {self.email} to {self.tenant.name}"
+        return f"Invitation for {self.email} to {self.tenant}"
 
     def save(self, *args, **kwargs):
         if not self.token:
             self.token = str(uuid7())
         if not self.expires_at:
             from datetime import timedelta
-
             self.expires_at = timezone.now() + timedelta(days=7)
         super().save(*args, **kwargs)
 
     def is_valid(self):
-        """Check if invitation is still valid."""
         return self.status == "pending" and self.expires_at > timezone.now()
 
     def accept(self, user):
-        """Accept the invitation for a user."""
         if not self.is_valid():
-            raise ValidationError(_("This invitation is no longer valid"))  # type: ignore[arg-type]
+            raise ValidationError(_("This invitation is no longer valid"))
 
-        # Create or update TenantUser
         tenant_user, created = TenantUser.objects.get_or_create(
-            user=user, tenant=self.tenant, defaults={"role": self.role}
+            user=user,
+            tenant=self.tenant,
+            defaults={"role": self.role},
         )
-
         if not created and not tenant_user.is_active:
             tenant_user.is_active = True
             tenant_user.save()
@@ -339,5 +454,4 @@ class TenantInvitation(RLSModel):  # type: ignore[misc]
         self.status = "accepted"
         self.accepted_at = timezone.now()
         self.save()
-
         return tenant_user

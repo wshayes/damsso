@@ -12,7 +12,10 @@ class DamssoConfig(AppConfig):
 
     def ready(self):
         """
-        Import signal handlers when app is ready.
+        Ensure DAMSSO_TENANT_MODEL has a default when it is not explicitly set.
+        This covers standalone use without modifying global Django settings.
         """
-        # Import signals here if needed
-        pass
+        from django.conf import settings
+
+        if not hasattr(settings, "DAMSSO_TENANT_MODEL"):
+            settings.DAMSSO_TENANT_MODEL = "damsso.Tenant"

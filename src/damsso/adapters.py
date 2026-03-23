@@ -9,7 +9,7 @@ from django.shortcuts import redirect
 from django.urls import reverse
 from django.utils.translation import gettext_lazy as _
 
-from .models import SSOProvider, Tenant, TenantInvitation, TenantUser
+from .models import SSOProvider, TenantInvitation, TenantUser, get_tenant_model
 
 
 class MultiTenantAccountAdapter(DefaultAccountAdapter):
@@ -30,9 +30,9 @@ class MultiTenantAccountAdapter(DefaultAccountAdapter):
         tenant_signup_token = request.session.get("tenant_signup_token")
         if tenant_signup_token:
             try:
-                tenant = Tenant.objects.get(signup_token=tenant_signup_token, is_active=True)
+                tenant = get_tenant_model().objects.get(signup_token=tenant_signup_token, is_active=True)
                 return True
-            except Tenant.DoesNotExist:
+            except Exception:
                 pass
 
         # Check if tenant allows open signup (can be configured in settings)
@@ -116,13 +116,13 @@ class MultiTenantAccountAdapter(DefaultAccountAdapter):
             tenant_signup_token = request.session.get("tenant_signup_token")
             if tenant_signup_token:
                 try:
-                    tenant = Tenant.objects.get(signup_token=tenant_signup_token, is_active=True)
+                    tenant = get_tenant_model().objects.get(signup_token=tenant_signup_token, is_active=True)
                     # Create tenant membership
                     TenantUser.objects.get_or_create(user=user, tenant=tenant, defaults={"role": "member"})
                     messages.success(request, _("You have successfully joined {tenant}").format(tenant=tenant.name))
                     # Clear token from session
                     del request.session["tenant_signup_token"]
-                except Tenant.DoesNotExist:
+                except Exception:
                     pass
 
             # Check for invitation (invitations take precedence if both exist)
@@ -165,9 +165,9 @@ class MultiTenantSocialAccountAdapter(DefaultSocialAccountAdapter):
 
         if tenant_id:
             try:
-                tenant = Tenant.objects.get(id=tenant_id, is_active=True)
+                tenant = get_tenant_model().objects.get(id=tenant_id, is_active=True)
                 return tenant.sso_enabled
-            except Tenant.DoesNotExist:
+            except Exception:
                 pass
 
         # Check for invitation
@@ -197,7 +197,7 @@ class MultiTenantSocialAccountAdapter(DefaultSocialAccountAdapter):
 
             if tenant_id:
                 try:
-                    tenant = Tenant.objects.get(id=tenant_id)
+                    tenant = get_tenant_model().objects.get(id=tenant_id)
                     # Check if user is already a member
                     tenant_user, created = TenantUser.objects.get_or_create(
                         user=user, tenant=tenant, defaults={"role": "member"}
@@ -218,7 +218,7 @@ class MultiTenantSocialAccountAdapter(DefaultSocialAccountAdapter):
                         tenant_user.external_id = str(external_id)
                         tenant_user.save()
 
-                except Tenant.DoesNotExist:
+                except Exception:
                     pass
 
     def save_user(self, request, sociallogin, form=None):
@@ -231,7 +231,7 @@ class MultiTenantSocialAccountAdapter(DefaultSocialAccountAdapter):
         tenant_id = request.session.get("sso_tenant_id")
         if tenant_id:
             try:
-                tenant = Tenant.objects.get(id=tenant_id)
+                tenant = get_tenant_model().objects.get(id=tenant_id)
                 external_id = sociallogin.account.extra_data.get("sub") or sociallogin.account.extra_data.get("id")
 
                 TenantUser.objects.create(
@@ -239,7 +239,7 @@ class MultiTenantSocialAccountAdapter(DefaultSocialAccountAdapter):
                 )
 
                 messages.success(request, _("Successfully joined {tenant}").format(tenant=tenant.name))
-            except Tenant.DoesNotExist:
+            except Exception:
                 pass
 
         # Check for invitation

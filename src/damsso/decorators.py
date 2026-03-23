@@ -5,7 +5,7 @@ from functools import wraps
 from django.shortcuts import get_object_or_404, redirect
 from django.contrib import messages
 from django.utils.translation import gettext as _
-from .models import Tenant, TenantUser
+from .models import TenantUser, get_tenant_model
 
 
 def tenant_member_required(view_func):
@@ -14,7 +14,7 @@ def tenant_member_required(view_func):
     """
     @wraps(view_func)
     def wrapper(request, tenant_slug, *args, **kwargs):
-        tenant = get_object_or_404(Tenant, slug=tenant_slug, is_active=True)
+        tenant = get_object_or_404(get_tenant_model(), slug=tenant_slug, is_active=True)
 
         try:
             tenant_user = TenantUser.objects.get(
@@ -44,7 +44,7 @@ def tenant_admin_required(view_func):
     """
     @wraps(view_func)
     def wrapper(request, tenant_slug, *args, **kwargs):
-        tenant = get_object_or_404(Tenant, slug=tenant_slug, is_active=True)
+        tenant = get_object_or_404(get_tenant_model(), slug=tenant_slug, is_active=True)
 
         try:
             tenant_user = TenantUser.objects.get(
