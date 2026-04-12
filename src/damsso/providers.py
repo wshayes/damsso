@@ -37,7 +37,7 @@ class OIDCProviderClient:
         self.oauth = _oauth_registry  # Use shared OAuth instance
 
         # Generate consistent client name for this tenant
-        self.client_name = f'tenant_{sso_provider.tenant.id}'
+        self.client_name = f'tenant_{sso_provider.tenant.pk}'
 
         # Configure OAuth client
         client_kwargs = {
@@ -346,10 +346,10 @@ class SAMLProviderClient:
         """
         # Build absolute URLs for SAML endpoints
         acs_url = request.build_absolute_uri(
-            reverse('damsso:saml_acs', args=[self.provider.tenant.id])
+            reverse('damsso:saml_acs', args=[self.provider.tenant.pk])
         )
         metadata_url = request.build_absolute_uri(
-            reverse('damsso:saml_metadata', args=[self.provider.tenant.id])
+            reverse('damsso:saml_metadata', args=[self.provider.tenant.pk])
         )
 
         # Parse attribute mapping

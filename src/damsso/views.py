@@ -81,7 +81,7 @@ def tenant_login(request, tenant_slug):
                     login(request, user)
 
                     # Store tenant in session
-                    request.session["current_tenant_id"] = str(tenant.id)
+                    request.session["current_tenant_id"] = str(tenant.pk)
                     request.session["current_tenant_slug"] = tenant.slug
 
                     # Handle remember me
@@ -160,7 +160,7 @@ def sso_login(request, tenant_slug):
         return redirect("account_login")
 
     # Store tenant info in session
-    request.session["sso_tenant_id"] = str(tenant.id)
+    request.session["sso_tenant_id"] = str(tenant.pk)
 
     # Route to appropriate SSO flow
     if sso_provider.protocol == "oidc":

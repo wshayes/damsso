@@ -24,6 +24,8 @@ from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from uuid_utils import uuid7 as uuid7_base
 
+from .fields import EncryptedCharField, EncryptedTextField
+
 
 def uuid7():
     """Generate a UUID7 and convert it to a standard uuid.UUID."""
@@ -308,7 +310,7 @@ class SSOProvider(RLSModel):  # type: ignore[misc]
         help_text=_("OIDC Issuer URL (e.g. https://accounts.google.com)"),
     )
     oidc_client_id = models.CharField(max_length=255, blank=True)
-    oidc_client_secret = models.BinaryField(  # encrypted via EncryptedCharField in practice
+    oidc_client_secret = EncryptedCharField(
         blank=True, null=True,
         editable=True,
         help_text=_("OIDC Client Secret (encrypted at rest)"),
@@ -326,7 +328,7 @@ class SSOProvider(RLSModel):  # type: ignore[misc]
     saml_entity_id = models.CharField(max_length=500, blank=True, help_text=_("SAML Entity ID / Issuer"))
     saml_sso_url = models.URLField(blank=True, null=True, help_text=_("SAML Single Sign-On URL"))
     saml_slo_url = models.URLField(blank=True, null=True, help_text=_("SAML Single Logout URL (optional)"))
-    saml_x509_cert = models.BinaryField(  # encrypted via EncryptedTextField in practice
+    saml_x509_cert = EncryptedTextField(
         blank=True, null=True,
         editable=True,
         help_text=_("X.509 Certificate for SAML (PEM format, encrypted at rest)"),
