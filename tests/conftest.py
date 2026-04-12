@@ -79,6 +79,8 @@ if not settings.configured:
         DEFAULT_FROM_EMAIL="test@example.com",
         SITE_NAME="Test Site",
         SITE_DOMAIN="testserver",
+        # Fernet key for encrypted fields (test-only, not secret)
+        FERNET_KEYS=["MkAi_r8OhW3RQlFcAGlF0j7pvCMKJTBLG7r8QpWJhSk="],
     )
     django.setup()
 

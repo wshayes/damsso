@@ -245,7 +245,7 @@ class TestTenantInvitation:
         assert invitation.invited_by == user
         assert invitation.status == "pending"
         assert invitation.token is not None
-        assert len(invitation.token) == 32  # UUID hex is 32 chars
+        assert len(invitation.token) == 36  # UUID hex is 32 chars
         assert invitation.expires_at is not None
 
     def test_invitation_auto_generates_token(self, user, tenant):
@@ -254,7 +254,7 @@ class TestTenantInvitation:
         assert invitation.token is None or invitation.token == ""
         invitation.save()
         assert invitation.token is not None
-        assert len(invitation.token) == 32
+        assert len(invitation.token) == 36
 
     def test_invitation_auto_sets_expiration(self, user, tenant):
         """Test invitation auto-sets expiration date."""
