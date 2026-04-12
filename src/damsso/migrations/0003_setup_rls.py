@@ -104,6 +104,7 @@ class Migration(migrations.Migration):
 
     dependencies = [
         ('damsso', '0002_tenant_signup_token'),
+        ('tenants', '0002_subdomain_slug'),
     ]
 
     operations = [

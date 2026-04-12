@@ -16,6 +16,10 @@ class Migration(migrations.Migration):
     dependencies = [
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
         migrations.swappable_dependency(_TENANT_MODEL),
+        # Ensure Tenant.slug is finalized (varchar 63, PK) before FK columns are created.
+        # Without this, post_migrate RLS signals fire between damsso migrations and block
+        # tenants.0002 from cascading the slug type change through the tenant_id FK columns.
+        ('tenants', '0002_subdomain_slug'),
     ]
 
     operations = [
