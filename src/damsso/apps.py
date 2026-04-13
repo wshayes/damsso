@@ -19,3 +19,7 @@ class DamssoConfig(AppConfig):
 
         if not hasattr(settings, "DAMSSO_TENANT_MODEL"):
             settings.DAMSSO_TENANT_MODEL = "damsso.Tenant"
+
+        from .admin import register_damsso_tenant_admin
+
+        register_damsso_tenant_admin()

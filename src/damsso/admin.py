@@ -1,19 +1,23 @@
 """
 Admin interface for multi-tenant SSO models.
+
+When DAMSSO_TENANT_MODEL is swapped (e.g. to tenants.Tenant), the bundled
+``damsso.models.Tenant`` class must not be registered in the admin — it maps
+to a separate (usually empty) DB table and duplicates the host app's tenant.
+Only the resolved get_tenant_model() is registered in that case, and only from
+register_damsso_admin_models() when it is still the built-in model.
 """
 
 from django.contrib import admin
-from django.urls import reverse
 from django.utils.html import format_html
 from django.utils.translation import gettext_lazy as _
 
-from .models import SSOProvider, Tenant, TenantInvitation, TenantUser
+from .models import SSOProvider, TenantInvitation, TenantUser
 
 # Organize admin sections
 admin.site.index_template = "admin/index.html"
 
 
-@admin.register(Tenant)
 class TenantAdmin(admin.ModelAdmin):
     list_display = ["name", "slug", "domain", "sso_enabled", "sso_enforced", "is_active", "created_at"]
     list_filter = ["is_active", "sso_enabled", "sso_enforced", "created_at"]
@@ -186,3 +190,19 @@ class TenantInvitationAdmin(admin.ModelAdmin):
         (_("Status"), {"fields": ("status", "token", "expires_at", "accepted_at")}),
         (_("Timestamps"), {"fields": ("created_at",)}),
     )
+
+
+def register_damsso_tenant_admin():
+    """
+    Register admin for the concrete Tenant model only when using damsso's
+    built-in Tenant. Host apps that set DAMSSO_TENANT_MODEL must register
+    their own tenant model (and should not expose damsso.Tenant).
+    """
+    import damsso.models as damsso_models
+    from django.contrib import admin
+
+    from .models import get_tenant_model
+
+    tenant_model = get_tenant_model()
+    if tenant_model is damsso_models.Tenant and not admin.site.is_registered(tenant_model):
+        admin.site.register(tenant_model, TenantAdmin)

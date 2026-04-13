@@ -131,6 +131,27 @@ CSRF_COOKIE_HTTPONLY = True
 CSRF_COOKIE_SAMESITE = 'Lax'
 ```
 
+### Optional integration hooks
+
+```python
+# Outbound OIDC HTTP timeout in seconds (metadata, JWKS, token exchange, userinfo)
+DAMSSO_OIDC_HTTP_TIMEOUT = 15
+
+# Dotted path: callable (request, tenant, email, userinfo) -> None; raise ValueError to deny login
+DAMSSO_SSO_USER_POLICY = None
+
+# Dotted path: callable (request, user, tenant, sso_provider) -> None; run after TenantUser sync
+DAMSSO_POST_SSO_USER = None
+```
+
+### Admin and ``DAMSSO_TENANT_MODEL``
+
+When ``DAMSSO_TENANT_MODEL`` points at your own tenant model, damsso **does not**
+register the bundled ``damsso.Tenant`` in the Django admin (that placeholder would
+target a separate table). Register your tenant model yourself. damsso still registers
+``TenantUser``, ``SSOProvider``, and ``TenantInvitation`` unless your project unregisters
+them for UX reasons.
+
 ## Custom Templates
 
 ### Override Email Templates

@@ -1,21 +1,37 @@
 """
 SSO provider implementations for OIDC and SAML.
 """
-from authlib.integrations.django_client import OAuth
-from authlib.jose import jwt
-from authlib.oidc.core import CodeIDToken
-import requests
-from django.conf import settings
-from django.urls import reverse
-from django.contrib.auth import get_user_model
-from .models import SSOProvider, Tenant
 
+from __future__ import annotations
+
+import logging
+from typing import Any
+
+import requests
+from authlib.jose import JsonWebKey, jwt as jose_jwt
+from authlib.integrations.django_client import OAuth
+from django.conf import settings
+from django.contrib.auth import get_user_model
+
+from .models import SSOProvider
+from .oidc_utils import oidc_http_timeout
 
 User = get_user_model()
+logger = logging.getLogger(__name__)
 
 # Shared OAuth instance for all OIDC providers
 # This ensures session state is maintained across requests
 _oauth_registry = OAuth()
+
+
+def _requests_get_json(url: str) -> dict[str, Any]:
+    r = requests.get(url, timeout=oidc_http_timeout())
+    r.raise_for_status()
+    return r.json()
+
+
+def _requests_post_form(url: str, data: dict[str, Any]) -> requests.Response:
+    return requests.post(url, data=data, timeout=oidc_http_timeout())
 
 
 class OIDCProviderClient:
@@ -30,23 +46,21 @@ class OIDCProviderClient:
         Args:
             sso_provider: SSOProvider instance with OIDC configuration
         """
-        if sso_provider.protocol != 'oidc':
+        if sso_provider.protocol != "oidc":
             raise ValueError("SSO Provider must be OIDC protocol")
 
         self.provider = sso_provider
         self.oauth = _oauth_registry  # Use shared OAuth instance
 
         # Generate consistent client name for this tenant
-        self.client_name = f'tenant_{sso_provider.tenant.pk}'
+        self.client_name = f"tenant_{sso_provider.tenant.pk}"
 
         # Configure OAuth client
-        client_kwargs = {
-            'scope': sso_provider.oidc_scopes or 'openid email profile'
-        }
+        client_kwargs = {"scope": sso_provider.oidc_scopes or "openid email profile"}
 
         # Check if client is already registered, if so, unregister it first
         # This ensures we always use the latest configuration
-        if hasattr(self.oauth, '_clients') and self.client_name in self.oauth._clients:
+        if hasattr(self.oauth, "_clients") and self.client_name in self.oauth._clients:
             del self.oauth._clients[self.client_name]
 
         # Use discovery if issuer is provided
@@ -55,8 +69,8 @@ class OIDCProviderClient:
                 name=self.client_name,
                 client_id=sso_provider.oidc_client_id,
                 client_secret=sso_provider.oidc_client_secret,
-                server_metadata_url=f'{sso_provider.oidc_issuer}/.well-known/openid-configuration',
-                client_kwargs=client_kwargs
+                server_metadata_url=f"{sso_provider.oidc_issuer}/.well-known/openid-configuration",
+                client_kwargs=client_kwargs,
             )
         else:
             # Manual configuration
@@ -68,10 +82,17 @@ class OIDCProviderClient:
                 access_token_url=sso_provider.oidc_token_endpoint,
                 userinfo_endpoint=sso_provider.oidc_userinfo_endpoint,
                 jwks_uri=sso_provider.oidc_jwks_uri,
-                client_kwargs=client_kwargs
+                client_kwargs=client_kwargs,
             )
 
         self.client = self.oauth.create_client(self.client_name)
+
+    def _issuer_metadata(self) -> dict[str, Any] | None:
+        """OpenID discovery document when oidc_issuer is configured."""
+        if not self.provider.oidc_issuer:
+            return None
+        url = f"{self.provider.oidc_issuer}/.well-known/openid-configuration"
+        return _requests_get_json(url)
 
     def get_authorization_url(self, request, redirect_uri):
         """
@@ -85,6 +106,7 @@ class OIDCProviderClient:
             tuple: (authorization_url, state)
         """
         import secrets
+        from urllib.parse import urlencode
 
         # Generate our own state to avoid authlib session issues
         state = secrets.token_urlsafe(32)
@@ -93,37 +115,31 @@ class OIDCProviderClient:
         # Store state and nonce in Django session with a unique key
         session_key = f"_oauth_state_{self.client_name}"
         request.session[session_key] = {
-            'state': state,
-            'nonce': nonce,
-            'redirect_uri': redirect_uri
+            "state": state,
+            "nonce": nonce,
+            "redirect_uri": redirect_uri,
         }
         # Mark session as modified if it's a real Django session
-        if hasattr(request.session, 'modified'):
+        if hasattr(request.session, "modified"):
             request.session.modified = True
 
         # Build authorization URL manually
         params = {
-            'response_type': 'code',
-            'client_id': self.provider.oidc_client_id,
-            'redirect_uri': redirect_uri,
-            'scope': self.provider.oidc_scopes or 'openid email profile',
-            'state': state,
-            'nonce': nonce,
+            "response_type": "code",
+            "client_id": self.provider.oidc_client_id,
+            "redirect_uri": redirect_uri,
+            "scope": self.provider.oidc_scopes or "openid email profile",
+            "state": state,
+            "nonce": nonce,
         }
 
         # Get authorization endpoint
         if self.provider.oidc_issuer:
-            # Fetch from well-known endpoint
-            import requests
-            well_known_url = f'{self.provider.oidc_issuer}/.well-known/openid-configuration'
-            response = requests.get(well_known_url)
-            metadata = response.json()
-            authorization_endpoint = metadata['authorization_endpoint']
+            metadata = self._issuer_metadata()
+            authorization_endpoint = metadata["authorization_endpoint"]
         else:
             authorization_endpoint = self.provider.oidc_authorization_endpoint
 
-        # Build URL
-        from urllib.parse import urlencode
         url = f"{authorization_endpoint}?{urlencode(params)}"
 
         return url, state
@@ -139,9 +155,6 @@ class OIDCProviderClient:
         Returns:
             dict: Token response
         """
-        import requests
-        from django.http import QueryDict
-
         # Validate state
         session_key = f"_oauth_state_{self.client_name}"
         session_data = request.session.get(session_key)
@@ -150,99 +163,166 @@ class OIDCProviderClient:
             raise ValueError("No OAuth state found in session")
 
         # Get state from callback
-        callback_state = request.GET.get('state')
+        callback_state = request.GET.get("state")
         if not callback_state:
             raise ValueError("No state parameter in callback")
 
         # Verify state matches
-        if callback_state != session_data['state']:
+        if callback_state != session_data["state"]:
             raise ValueError(f"State mismatch: expected {session_data['state']}, got {callback_state}")
 
         # Get authorization code
-        code = request.GET.get('code')
+        code = request.GET.get("code")
         if not code:
-            error = request.GET.get('error', 'unknown_error')
-            error_description = request.GET.get('error_description', 'No description provided')
+            error = request.GET.get("error", "unknown_error")
+            error_description = request.GET.get("error_description", "No description provided")
             raise ValueError(f"OAuth error: {error} - {error_description}")
+
+        nonce = session_data.get("nonce")
 
         # Get token endpoint
         if self.provider.oidc_issuer:
-            well_known_url = f'{self.provider.oidc_issuer}/.well-known/openid-configuration'
-            response = requests.get(well_known_url)
-            metadata = response.json()
-            token_endpoint = metadata['token_endpoint']
+            metadata = self._issuer_metadata()
+            token_endpoint = metadata["token_endpoint"]
         else:
             token_endpoint = self.provider.oidc_token_endpoint
 
         # Exchange code for token
         token_data = {
-            'grant_type': 'authorization_code',
-            'code': code,
-            'redirect_uri': redirect_uri,
-            'client_id': self.provider.oidc_client_id,
-            'client_secret': self.provider.oidc_client_secret,
+            "grant_type": "authorization_code",
+            "code": code,
+            "redirect_uri": redirect_uri,
+            "client_id": self.provider.oidc_client_id,
+            "client_secret": self.provider.oidc_client_secret,
         }
 
-        token_response = requests.post(token_endpoint, data=token_data)
+        token_response = _requests_post_form(token_endpoint, data=token_data)
         token_response.raise_for_status()
         token = token_response.json()
+
+        # Preserve nonce for ID token validation in get_userinfo (session row is removed below)
+        if nonce:
+            token["_damsso_oidc_nonce"] = nonce
 
         # Clean up session
         if session_key in request.session:
             del request.session[session_key]
-        if hasattr(request.session, 'modified'):
+        if hasattr(request.session, "modified"):
             request.session.modified = True
 
         return token
+
+    def _jwks_uri(self, metadata: dict[str, Any] | None) -> str | None:
+        if metadata and metadata.get("jwks_uri"):
+            return metadata["jwks_uri"]
+        return self.provider.oidc_jwks_uri or None
+
+    def _expected_issuer(self, metadata: dict[str, Any] | None) -> str | None:
+        if metadata and metadata.get("issuer"):
+            return metadata["issuer"]
+        if self.provider.oidc_issuer:
+            return str(self.provider.oidc_issuer).rstrip("/")
+        return None
+
+    def _decode_id_token_verified(
+        self,
+        id_token: str,
+        nonce: str | None,
+        metadata: dict[str, Any] | None,
+    ) -> dict[str, Any]:
+        """
+        Verify and decode an OIDC ID token (RS/EC via JWKS, or HS256 with client_secret).
+        """
+        jwks_uri = self._jwks_uri(metadata)
+        expected_iss = self._expected_issuer(metadata)
+        client_id = self.provider.oidc_client_id
+
+        if not expected_iss:
+            raise ValueError(
+                "Cannot verify ID token: configure oidc_issuer (discovery) "
+                "or ensure issuer is present in provider metadata."
+            )
+
+        import base64
+        import json
+
+        # Inspect header for algorithm
+        header_segment = id_token.split(".")[0]
+        pad = 4 - len(header_segment) % 4
+        if pad != 4:
+            header_segment += "=" * pad
+
+        header = json.loads(base64.urlsafe_b64decode(header_segment.encode("ascii")))
+        alg = header.get("alg") or "RS256"
+
+        if alg == "HS256":
+            secret = self.provider.oidc_client_secret
+            if not secret:
+                raise ValueError("Cannot verify HS256 ID token without client_secret.")
+            claims = jose_jwt.decode(
+                id_token,
+                secret,
+                claims_options={
+                    "iss": {"essential": True, "value": expected_iss},
+                    "aud": {"essential": True, "value": client_id},
+                },
+            )
+        else:
+            if not jwks_uri:
+                raise ValueError(
+                    "Cannot verify ID token: no JWKS URI (configure issuer discovery "
+                    "or set oidc_jwks_uri on the provider)."
+                )
+            jwks = _requests_get_json(jwks_uri)
+            key_set = JsonWebKey.import_key_set(jwks)
+            claims_options: dict[str, dict[str, Any]] = {
+                "iss": {"essential": True, "value": expected_iss},
+                "aud": {"essential": True, "value": client_id},
+            }
+            if nonce:
+                claims_options["nonce"] = {"essential": True, "value": nonce}
+
+            claims = jose_jwt.decode(id_token, key_set, claims_options=claims_options)
+
+        try:
+            claims.validate()
+        except Exception as exc:
+            logger.warning("ID token claims validation failed: %s", exc)
+            raise ValueError("ID token validation failed") from exc
+
+        # Normalise to plain dict for callers
+        return dict(claims)
 
     def get_userinfo(self, token):
         """
         Get user information from OIDC provider.
 
-        Args:
-            token: Token dict from provider containing access_token and id_token
-
-        Returns:
-            dict: User information
+        Prefers the userinfo endpoint when available. ID tokens are only accepted
+        after cryptographic verification (JWKS / client secret for HS256).
         """
-        import requests
+        metadata = self._issuer_metadata() if self.provider.oidc_issuer else None
 
-        # Get userinfo endpoint
         if self.provider.oidc_issuer:
-            well_known_url = f'{self.provider.oidc_issuer}/.well-known/openid-configuration'
-            response = requests.get(well_known_url)
-            metadata = response.json()
-            userinfo_endpoint = metadata.get('userinfo_endpoint')
+            assert metadata is not None
+            userinfo_endpoint = metadata.get("userinfo_endpoint")
         else:
             userinfo_endpoint = self.provider.oidc_userinfo_endpoint
 
-        # Fetch user info from userinfo endpoint
-        if userinfo_endpoint and 'access_token' in token:
-            headers = {
-                'Authorization': f"Bearer {token['access_token']}"
-            }
-            response = requests.get(userinfo_endpoint, headers=headers)
+        if userinfo_endpoint and "access_token" in token:
+            headers = {"Authorization": f"Bearer {token['access_token']}"}
+            response = requests.get(userinfo_endpoint, headers=headers, timeout=oidc_http_timeout())
             response.raise_for_status()
             return response.json()
 
-        # Fallback: Try to parse user info from ID token
-        id_token = token.get('id_token')
-        if id_token:
-            # Decode without verification for now (verification would require fetching JWKS)
-            import base64
-            import json
-            # Split the JWT and decode the payload
-            parts = id_token.split('.')
-            if len(parts) == 3:
-                # Add padding if needed
-                payload = parts[1]
-                padding = 4 - len(payload) % 4
-                if padding != 4:
-                    payload += '=' * padding
-                decoded = base64.urlsafe_b64decode(payload)
-                return json.loads(decoded)
+        id_token = token.get("id_token")
+        if not id_token:
+            raise ValueError(
+                "OIDC provider returned no userinfo and no id_token; cannot determine user identity."
+            )
 
-        return {}
+        nonce = token.get("_damsso_oidc_nonce")
+        userinfo = self._decode_id_token_verified(id_token, nonce, metadata)
+        return userinfo
 
     def test_connection(self):
         """
@@ -254,66 +334,66 @@ class OIDCProviderClient:
         try:
             # Try to fetch OpenID configuration
             if self.provider.oidc_issuer:
-                config_url = f'{self.provider.oidc_issuer}/.well-known/openid-configuration'
+                config_url = f"{self.provider.oidc_issuer}/.well-known/openid-configuration"
                 response = requests.get(config_url, timeout=10)
                 response.raise_for_status()
                 config = response.json()
 
                 return {
-                    'success': True,
-                    'message': 'OIDC provider configuration retrieved successfully',
-                    'details': {
-                        'issuer': config.get('issuer'),
-                        'authorization_endpoint': config.get('authorization_endpoint'),
-                        'token_endpoint': config.get('token_endpoint'),
-                        'userinfo_endpoint': config.get('userinfo_endpoint'),
-                        'scopes_supported': config.get('scopes_supported', [])
-                    }
+                    "success": True,
+                    "message": "OIDC provider configuration retrieved successfully",
+                    "details": {
+                        "issuer": config.get("issuer"),
+                        "authorization_endpoint": config.get("authorization_endpoint"),
+                        "token_endpoint": config.get("token_endpoint"),
+                        "userinfo_endpoint": config.get("userinfo_endpoint"),
+                        "scopes_supported": config.get("scopes_supported", []),
+                    },
                 }
             else:
                 # Check if endpoints are reachable
                 endpoints_ok = True
-                details = {}
+                details: dict[str, Any] = {}
 
                 for endpoint_name, endpoint_url in [
-                    ('authorization', self.provider.oidc_authorization_endpoint),
-                    ('token', self.provider.oidc_token_endpoint),
-                    ('userinfo', self.provider.oidc_userinfo_endpoint)
+                    ("authorization", self.provider.oidc_authorization_endpoint),
+                    ("token", self.provider.oidc_token_endpoint),
+                    ("userinfo", self.provider.oidc_userinfo_endpoint),
                 ]:
                     if endpoint_url:
                         try:
                             response = requests.get(endpoint_url, timeout=5)
-                            details[f'{endpoint_name}_endpoint'] = {
-                                'url': endpoint_url,
-                                'reachable': True,
-                                'status': response.status_code
+                            details[f"{endpoint_name}_endpoint"] = {
+                                "url": endpoint_url,
+                                "reachable": True,
+                                "status": response.status_code,
                             }
                         except Exception as e:
-                            details[f'{endpoint_name}_endpoint'] = {
-                                'url': endpoint_url,
-                                'reachable': False,
-                                'error': str(e)
+                            details[f"{endpoint_name}_endpoint"] = {
+                                "url": endpoint_url,
+                                "reachable": False,
+                                "error": str(e),
                             }
                             endpoints_ok = False
 
                 if endpoints_ok:
                     return {
-                        'success': True,
-                        'message': 'OIDC endpoints are reachable',
-                        'details': details
+                        "success": True,
+                        "message": "OIDC endpoints are reachable",
+                        "details": details,
                     }
                 else:
                     return {
-                        'success': False,
-                        'message': 'Some OIDC endpoints are not reachable',
-                        'details': details
+                        "success": False,
+                        "message": "Some OIDC endpoints are not reachable",
+                        "details": details,
                     }
 
         except Exception as e:
             return {
-                'success': False,
-                'message': f'Failed to connect to OIDC provider: {str(e)}',
-                'error': str(e)
+                "success": False,
+                "message": f"Failed to connect to OIDC provider: {str(e)}",
+                "error": str(e),
             }
 
 
@@ -329,7 +409,7 @@ class SAMLProviderClient:
         Args:
             sso_provider: SSOProvider instance with SAML configuration
         """
-        if sso_provider.protocol != 'saml':
+        if sso_provider.protocol != "saml":
             raise ValueError("SSO Provider must be SAML protocol")
 
         self.provider = sso_provider
@@ -344,82 +424,79 @@ class SAMLProviderClient:
         Returns:
             dict: SAML settings
         """
-        # Build absolute URLs for SAML endpoints
-        acs_url = request.build_absolute_uri(
-            reverse('damsso:saml_acs', args=[self.provider.tenant.pk])
-        )
-        metadata_url = request.build_absolute_uri(
-            reverse('damsso:saml_metadata', args=[self.provider.tenant.pk])
-        )
+        from django.urls import reverse
 
-        # Parse attribute mapping
-        attribute_mapping = self.provider.saml_attribute_mapping or {}
+        # Build absolute URLs for SAML endpoints
+        acs_url = request.build_absolute_uri(reverse("damsso:saml_acs", args=[self.provider.tenant.pk]))
+        metadata_url = request.build_absolute_uri(
+            reverse("damsso:saml_metadata", args=[self.provider.tenant.pk])
+        )
 
         saml_settings = {
-            'strict': True,
-            'debug': settings.DEBUG,
-            'sp': {
-                'entityId': metadata_url,
-                'assertionConsumerService': {
-                    'url': acs_url,
-                    'binding': 'urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST'
+            "strict": True,
+            "debug": settings.DEBUG,
+            "sp": {
+                "entityId": metadata_url,
+                "assertionConsumerService": {
+                    "url": acs_url,
+                    "binding": "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST",
                 },
-                'attributeConsumingService': {
-                    'serviceName': f'{self.provider.tenant.name} SSO',
-                    'serviceDescription': f'SSO service for {self.provider.tenant.name}',
-                    'requestedAttributes': [
+                "attributeConsumingService": {
+                    "serviceName": f"{self.provider.tenant.name} SSO",
+                    "serviceDescription": f"SSO service for {self.provider.tenant.name}",
+                    "requestedAttributes": [
                         {
-                            'name': 'email',
-                            'isRequired': True,
-                            'nameFormat': 'urn:oasis:names:tc:SAML:2.0:attrname-format:basic',
-                            'friendlyName': 'email'
+                            "name": "email",
+                            "isRequired": True,
+                            "nameFormat": "urn:oasis:names:tc:SAML:2.0:attrname-format:basic",
+                            "friendlyName": "email",
                         },
                         {
-                            'name': 'firstName',
-                            'isRequired': False,
-                            'nameFormat': 'urn:oasis:names:tc:SAML:2.0:attrname-format:basic',
-                            'friendlyName': 'firstName'
+                            "name": "firstName",
+                            "isRequired": False,
+                            "nameFormat": "urn:oasis:names:tc:SAML:2.0:attrname-format:basic",
+                            "friendlyName": "firstName",
                         },
                         {
-                            'name': 'lastName',
-                            'isRequired': False,
-                            'nameFormat': 'urn:oasis:names:tc:SAML:2.0:attrname-format:basic',
-                            'friendlyName': 'lastName'
-                        }
-                    ]
+                            "name": "lastName",
+                            "isRequired": False,
+                            "nameFormat": "urn:oasis:names:tc:SAML:2.0:attrname-format:basic",
+                            "friendlyName": "lastName",
+                        },
+                    ],
                 },
-                'NameIDFormat': 'urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress',
+                "NameIDFormat": "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress",
             },
-            'idp': {
-                'entityId': self.provider.saml_entity_id,
-                'singleSignOnService': {
-                    'url': self.provider.saml_sso_url,
-                    'binding': 'urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect'
+            "idp": {
+                "entityId": self.provider.saml_entity_id,
+                "singleSignOnService": {
+                    "url": self.provider.saml_sso_url,
+                    "binding": "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect",
                 },
-                'x509cert': self._clean_certificate(self.provider.saml_x509_cert)
+                "x509cert": self._clean_certificate(self.provider.saml_x509_cert),
             },
-            'security': {
-                'nameIdEncrypted': False,
-                'authnRequestsSigned': False,
-                'logoutRequestSigned': False,
-                'logoutResponseSigned': False,
-                'signMetadata': False,
-                'wantMessagesSigned': False,
-                'wantAssertionsSigned': True,
-                'wantAssertionsEncrypted': False,
-                'wantNameIdEncrypted': False,
-                'requestedAuthnContext': True,
-                'requestedAuthnContextComparison': 'exact',
-                'metadataValidUntil': None,
-                'metadataCacheDuration': None,
-            }
+            "security": {
+                "nameIdEncrypted": False,
+                "authnRequestsSigned": False,
+                "logoutRequestSigned": False,
+                "logoutResponseSigned": False,
+                "signMetadata": False,
+                "wantMessagesSigned": False,
+                "wantAssertionsSigned": True,
+                "wantAssertionsEncrypted": False,
+                "wantNameIdEncrypted": False,
+                "requestedAuthnContext": True,
+                "requestedAuthnContextComparison": "exact",
+                "metadataValidUntil": None,
+                "metadataCacheDuration": None,
+            },
         }
 
         # Add SLO if configured
         if self.provider.saml_slo_url:
-            saml_settings['idp']['singleLogoutService'] = {
-                'url': self.provider.saml_slo_url,
-                'binding': 'urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect'
+            saml_settings["idp"]["singleLogoutService"] = {
+                "url": self.provider.saml_slo_url,
+                "binding": "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect",
             }
 
         return saml_settings
@@ -435,14 +512,14 @@ class SAMLProviderClient:
             str: Cleaned certificate
         """
         if not cert:
-            return ''
+            return ""
 
         cert = cert.strip()
-        cert = cert.replace('-----BEGIN CERTIFICATE-----', '')
-        cert = cert.replace('-----END CERTIFICATE-----', '')
-        cert = cert.replace('\n', '')
-        cert = cert.replace('\r', '')
-        cert = cert.replace(' ', '')
+        cert = cert.replace("-----BEGIN CERTIFICATE-----", "")
+        cert = cert.replace("-----END CERTIFICATE-----", "")
+        cert = cert.replace("\n", "")
+        cert = cert.replace("\r", "")
+        cert = cert.replace(" ", "")
         return cert
 
     def test_connection(self):
@@ -455,22 +532,13 @@ class SAMLProviderClient:
         try:
             # Basic validation
             if not self.provider.saml_entity_id:
-                return {
-                    'success': False,
-                    'message': 'SAML Entity ID is required'
-                }
+                return {"success": False, "message": "SAML Entity ID is required"}
 
             if not self.provider.saml_sso_url:
-                return {
-                    'success': False,
-                    'message': 'SAML SSO URL is required'
-                }
+                return {"success": False, "message": "SAML SSO URL is required"}
 
             if not self.provider.saml_x509_cert:
-                return {
-                    'success': False,
-                    'message': 'SAML X.509 Certificate is required'
-                }
+                return {"success": False, "message": "SAML X.509 Certificate is required"}
 
             # Test if SSO URL is reachable
             try:
@@ -486,46 +554,39 @@ class SAMLProviderClient:
                 cleaned_cert = self._clean_certificate(self.provider.saml_x509_cert)
                 if len(cleaned_cert) > 0:
                     cert_valid = True
-                    cert_message = 'Certificate format appears valid'
+                    cert_message = "Certificate format appears valid"
                 else:
                     cert_valid = False
-                    cert_message = 'Certificate is empty'
+                    cert_message = "Certificate is empty"
             except Exception as e:
                 cert_valid = False
-                cert_message = f'Certificate validation failed: {str(e)}'
+                cert_message = f"Certificate validation failed: {str(e)}"
 
             details = {
-                'entity_id': self.provider.saml_entity_id,
-                'sso_url': {
-                    'url': self.provider.saml_sso_url,
-                    'reachable': sso_url_reachable,
-                    'status': sso_url_status if sso_url_reachable else 'N/A',
-                    'error': sso_url_error if not sso_url_reachable else None
+                "entity_id": self.provider.saml_entity_id,
+                "sso_url": {
+                    "url": self.provider.saml_sso_url,
+                    "reachable": sso_url_reachable,
+                    "status": sso_url_status if sso_url_reachable else "N/A",
+                    "error": sso_url_error if not sso_url_reachable else None,
                 },
-                'certificate': {
-                    'valid': cert_valid,
-                    'message': cert_message
-                }
+                "certificate": {"valid": cert_valid, "message": cert_message},
             }
 
             if sso_url_reachable and cert_valid:
-                return {
-                    'success': True,
-                    'message': 'SAML provider configuration is valid',
-                    'details': details
-                }
+                return {"success": True, "message": "SAML provider configuration is valid", "details": details}
             else:
                 return {
-                    'success': False,
-                    'message': 'SAML provider configuration has issues',
-                    'details': details
+                    "success": False,
+                    "message": "SAML provider configuration has issues",
+                    "details": details,
                 }
 
         except Exception as e:
             return {
-                'success': False,
-                'message': f'Failed to validate SAML provider: {str(e)}',
-                'error': str(e)
+                "success": False,
+                "message": f"Failed to validate SAML provider: {str(e)}",
+                "error": str(e),
             }
 
 
@@ -542,9 +603,9 @@ def get_provider_client(sso_provider: SSOProvider):
     Raises:
         ValueError: If protocol is not supported
     """
-    if sso_provider.protocol == 'oidc':
+    if sso_provider.protocol == "oidc":
         return OIDCProviderClient(sso_provider)
-    elif sso_provider.protocol == 'saml':
+    elif sso_provider.protocol == "saml":
         return SAMLProviderClient(sso_provider)
     else:
         raise ValueError(f"Unsupported protocol: {sso_provider.protocol}")

@@ -16,7 +16,6 @@ from django.utils.translation import gettext as _
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 from onelogin.saml2.auth import OneLogin_Saml2_Auth
-from onelogin.saml2.utils import OneLogin_Saml2_Utils
 
 from .decorators import tenant_admin_required, tenant_member_required
 from .emails import send_invitation_accepted_notification, send_invitation_email
@@ -29,9 +28,36 @@ from .forms import (
     TenantInvitationForm,
 )
 from .models import SSOProvider, TenantInvitation, TenantUser, get_tenant_model
+from .relay_state import safe_saml_relay_path
 from .providers import OIDCProviderClient, SAMLProviderClient, get_provider_client
 
 User = get_user_model()
+
+
+def _run_sso_user_policy(request, tenant, email, userinfo):
+    """
+    Optional dotted path: DAMSSO_SSO_USER_POLICY = 'myapp.hooks.assert_sso_user_allowed'
+    Callable: (request, tenant, email, userinfo) -> None; raise ValueError to block login.
+    """
+    dotted = getattr(settings, "DAMSSO_SSO_USER_POLICY", None)
+    if not dotted:
+        return
+    from django.utils.module_loading import import_string
+
+    import_string(dotted)(request, tenant, email, userinfo)
+
+
+def _run_post_sso_user(request, user, tenant, sso_provider):
+    """
+    Optional dotted path: DAMSSO_POST_SSO_USER = 'myapp.hooks.after_sso_user'
+    Callable: (request, user, tenant, sso_provider) -> None
+    """
+    dotted = getattr(settings, "DAMSSO_POST_SSO_USER", None)
+    if not dotted:
+        return
+    from django.utils.module_loading import import_string
+
+    import_string(dotted)(request, user, tenant, sso_provider)
 
 
 def _get_tenant_or_404(**kwargs):
@@ -83,6 +109,8 @@ def tenant_login(request, tenant_slug):
                     # Store tenant in session
                     request.session["current_tenant_id"] = str(tenant.pk)
                     request.session["current_tenant_slug"] = tenant.slug
+                    if hasattr(tenant, "slug"):
+                        request.session["sso_tenant_slug"] = tenant.slug
 
                     # Handle remember me
                     if not remember_me:
@@ -159,8 +187,10 @@ def sso_login(request, tenant_slug):
         messages.error(request, _("No active SSO provider configured for this organization."))
         return redirect("account_login")
 
-    # Store tenant info in session
+    # Store tenant info in session (id + slug for hosts that key off slug, e.g. django-allauth adapters)
     request.session["sso_tenant_id"] = str(tenant.pk)
+    slug = getattr(tenant, "slug", None)
+    request.session["sso_tenant_slug"] = slug if slug is not None else str(tenant.pk)
 
     # Route to appropriate SSO flow
     if sso_provider.protocol == "oidc":
@@ -371,10 +401,11 @@ def saml_acs(request, tenant_slug):
         if "saml_provider_id" in request.session:
             del request.session["saml_provider_id"]
 
-        # Handle relay state
+        # Handle relay state (only same-origin relative paths — avoid open redirects)
         relay_state = request.POST.get("RelayState")
-        if relay_state:
-            return redirect(OneLogin_Saml2_Utils.get_self_url(req) + relay_state)
+        safe_path = safe_saml_relay_path(relay_state)
+        if safe_path:
+            return redirect(safe_path)
 
         return redirect(settings.LOGIN_REDIRECT_URL)
 
@@ -988,6 +1019,8 @@ def _process_sso_user(request, sso_provider, userinfo):
     if not email:
         raise ValueError("Email is required from SSO provider")
 
+    _run_sso_user_policy(request, sso_provider.tenant, email, userinfo)
+
     # Get or create user (email-only authentication)
     # Note: If User model has username field, django-allauth will handle setting it to email
     user, created = User.objects.get_or_create(
@@ -1028,6 +1061,11 @@ def _process_sso_user(request, sso_provider, userinfo):
 
     # Store tenant in session
     request.session["current_tenant_id"] = str(sso_provider.tenant.pk)
+    t = sso_provider.tenant
+    if hasattr(t, "slug"):
+        request.session["sso_tenant_slug"] = t.slug
+
+    _run_post_sso_user(request, user, sso_provider.tenant, sso_provider)
 
     return user
 
