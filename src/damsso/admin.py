@@ -1,11 +1,19 @@
 """
 Admin interface for multi-tenant SSO models.
 
-When DAMSSO_TENANT_MODEL is swapped (e.g. to tenants.Tenant), the bundled
-``damsso.models.Tenant`` class must not be registered in the admin — it maps
-to a separate (usually empty) DB table and duplicates the host app's tenant.
-Only the resolved get_tenant_model() is registered in that case, and only from
-register_damsso_admin_models() when it is still the built-in model.
+Registration is deferred to :func:`register_damsso_admin`, invoked from
+:meth:`damsso.apps.DamssoConfig.ready`. This lets us gate which admins are
+attached based on the host project's configuration:
+
+* The bundled ``damsso.Tenant`` admin is only registered when
+  ``DAMSSO_TENANT_MODEL == 'damsso.Tenant'`` (standalone mode). When the
+  Tenant model is swapped, the host app owns admin registration for its
+  own tenant model.
+* The bundled ``TenantInvitation`` admin is only registered when
+  ``DAMSSO_USE_BUILTIN_INVITATIONS`` is True (the default). Host apps
+  that ship their own invitation flow can set it to False to hide
+  damsso's admin entry without having to call ``admin.site.unregister``
+  defensively.
 """
 
 from django.contrib import admin
@@ -69,7 +77,6 @@ class TenantAdmin(admin.ModelAdmin):
     generate_signup_token.short_description = _("Generate/Reset signup token")
 
 
-@admin.register(TenantUser)
 class TenantUserAdmin(admin.ModelAdmin):
     """
     Tenant User membership management.
@@ -96,7 +103,6 @@ class TenantUserAdmin(admin.ModelAdmin):
         verbose_name_plural = _("Tenant Users")
 
 
-@admin.register(SSOProvider)
 class SSOProviderAdmin(admin.ModelAdmin):
     list_display = [
         "name",
@@ -177,7 +183,6 @@ class SSOProviderAdmin(admin.ModelAdmin):
     status_indicator.short_description = _("Status")
 
 
-@admin.register(TenantInvitation)
 class TenantInvitationAdmin(admin.ModelAdmin):
     list_display = ["email", "tenant", "role", "status", "invited_by", "created_at", "expires_at"]
     list_filter = ["status", "role", "created_at", "expires_at"]
@@ -192,17 +197,35 @@ class TenantInvitationAdmin(admin.ModelAdmin):
     )
 
 
-def register_damsso_tenant_admin():
+def register_damsso_admin():
     """
-    Register admin for the concrete Tenant model only when using damsso's
-    built-in Tenant. Host apps that set DAMSSO_TENANT_MODEL must register
-    their own tenant model (and should not expose damsso.Tenant).
+    Register damsso's admin classes, honoring host-app opt-outs.
+
+    Idempotent: skips any model whose admin is already registered (so host
+    apps can register their own custom admin first).
     """
-    import damsso.models as damsso_models
-    from django.contrib import admin
+    from django.conf import settings
 
     from .models import get_tenant_model
 
+    # TenantUser and SSOProvider exist in both standalone and swap modes.
+    if not admin.site.is_registered(TenantUser):
+        admin.site.register(TenantUser, TenantUserAdmin)
+    if not admin.site.is_registered(SSOProvider):
+        admin.site.register(SSOProvider, SSOProviderAdmin)
+
+    # Tenant admin: only when using the built-in concrete model.
     tenant_model = get_tenant_model()
+    import damsso.models as damsso_models
     if tenant_model is damsso_models.Tenant and not admin.site.is_registered(tenant_model):
         admin.site.register(tenant_model, TenantAdmin)
+
+    # TenantInvitation admin: host can opt out via DAMSSO_USE_BUILTIN_INVITATIONS = False.
+    use_invitations = getattr(settings, "DAMSSO_USE_BUILTIN_INVITATIONS", True)
+    if use_invitations and not admin.site.is_registered(TenantInvitation):
+        admin.site.register(TenantInvitation, TenantInvitationAdmin)
+
+
+def register_damsso_tenant_admin():
+    """Deprecated alias for :func:`register_damsso_admin`. Kept for back-compat."""
+    register_damsso_admin()

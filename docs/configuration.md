@@ -144,13 +144,42 @@ DAMSSO_SSO_USER_POLICY = None
 DAMSSO_POST_SSO_USER = None
 ```
 
+### Host-app integration settings
+
+The following settings only matter when you're integrating damsso into a
+project that already has its own tenant model, RLS, or invitation flow.
+See the [Host-App Integration Guide](host-app-integration.md) for the full
+walkthrough.
+
+```python
+# Swap damsso's bundled Tenant for your own model (default: "damsso.Tenant")
+DAMSSO_TENANT_MODEL = "myapp.Tenant"
+
+# Inject extra dependencies into specific damsso migrations (default: {})
+# Useful when your tenant migration must finish before damsso adds FK columns.
+DAMSSO_EXTRA_MIGRATION_DEPENDENCIES = {
+    "0001_initial": [("myapp", "0002_my_tenant_pk_change")],
+    "0003_setup_rls": [("myapp", "0002_my_tenant_pk_change")],
+}
+
+# Skip damsso's RLS migration when your project sets up RLS its own way (default: True)
+DAMSSO_ENABLE_RLS = False
+
+# Override the admin-bypass SQL fragment used in damsso's RLS policies.
+# Default: "current_setting('rls.tenant_id', true) IS NULL"
+DAMSSO_RLS_BYPASS_PREDICATE = "current_setting('rls.tenant_id', true) = ''"
+
+# Hide damsso's TenantInvitation admin when your project ships its own (default: True)
+DAMSSO_USE_BUILTIN_INVITATIONS = False
+```
+
 ### Admin and ``DAMSSO_TENANT_MODEL``
 
 When ``DAMSSO_TENANT_MODEL`` points at your own tenant model, damsso **does not**
 register the bundled ``damsso.Tenant`` in the Django admin (that placeholder would
 target a separate table). Register your tenant model yourself. damsso still registers
-``TenantUser``, ``SSOProvider``, and ``TenantInvitation`` unless your project unregisters
-them for UX reasons.
+``TenantUser`` and ``SSOProvider``, and registers ``TenantInvitation`` unless you set
+``DAMSSO_USE_BUILTIN_INVITATIONS = False``.
 
 ## Custom Templates
 
@@ -195,7 +224,17 @@ Available variables in email templates:
 
 ## Custom Adapters
 
-### Custom Account Adapter
+damsso ships **two adapter styles** — pick the one that fits your project:
+
+* **Subclass the full adapter** (``MultiTenantAccountAdapter`` /
+  ``MultiTenantSocialAccountAdapter``) when you don't already have a
+  custom adapter and want every damsso default.
+* **Compose the routing mixin** (``SSORoutingAccountAdapterMixin`` /
+  ``SSORoutingSocialAccountAdapterMixin``) when you already maintain
+  your own ``DefaultAccountAdapter`` subclass and only want damsso's
+  SSO routing.
+
+### Custom Account Adapter — subclass style
 
 ```python
 # myapp/adapters.py
@@ -214,6 +253,18 @@ class MyAccountAdapter(MultiTenantAccountAdapter):
 ACCOUNT_ADAPTER = 'myapp.adapters.MyAccountAdapter'
 ```
 
+### Custom Account Adapter — mixin style
+
+```python
+# myapp/adapters.py
+from allauth.account.adapter import DefaultAccountAdapter
+from damsso.adapters import SSORoutingAccountAdapterMixin
+
+class MyAccountAdapter(SSORoutingAccountAdapterMixin, DefaultAccountAdapter):
+    """Your existing adapter, plus damsso's SSO routing."""
+    ...
+```
+
 ### Custom Social Account Adapter
 
 ```python
@@ -225,6 +276,16 @@ class MySocialAccountAdapter(MultiTenantSocialAccountAdapter):
         # Add custom logic here
         super().pre_social_login(request, sociallogin)
         # ... your custom code ...
+```
+
+Or, mixin style:
+
+```python
+from allauth.socialaccount.adapter import DefaultSocialAccountAdapter
+from damsso.adapters import SSORoutingSocialAccountAdapterMixin
+
+class MySocialAccountAdapter(SSORoutingSocialAccountAdapterMixin, DefaultSocialAccountAdapter):
+    ...
 ```
 
 ```python

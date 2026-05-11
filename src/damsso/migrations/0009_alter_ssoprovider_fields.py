@@ -2,6 +2,8 @@
 
 from django.db import migrations, models
 
+from ._swap import tenant_ops
+
 
 class Migration(migrations.Migration):
 
@@ -30,9 +32,11 @@ class Migration(migrations.Migration):
             name='protocol',
             field=models.CharField(choices=[('oidc', 'OpenID Connect (OIDC)'), ('saml', 'SAML 2.0')], help_text='Active SSO protocol (OIDC or SAML)', max_length=10),
         ),
-        migrations.AlterField(
-            model_name='tenant',
-            name='sso_enforced',
-            field=models.BooleanField(default=False, help_text='Enforce SSO — disable password login for tenant users'),
+        *tenant_ops(
+            migrations.AlterField(
+                model_name='tenant',
+                name='sso_enforced',
+                field=models.BooleanField(default=False, help_text='Enforce SSO — disable password login for tenant users'),
+            ),
         ),
     ]

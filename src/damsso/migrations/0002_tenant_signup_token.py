@@ -2,6 +2,8 @@
 
 from django.db import migrations, models
 
+from ._swap import tenant_ops
+
 
 class Migration(migrations.Migration):
 
@@ -9,7 +11,7 @@ class Migration(migrations.Migration):
         ("damsso", "0001_initial"),
     ]
 
-    operations = [
+    operations = tenant_ops(
         migrations.AddField(
             model_name="tenant",
             name="signup_token",
@@ -21,4 +23,4 @@ class Migration(migrations.Migration):
                 unique=True,
             ),
         ),
-    ]
+    )
