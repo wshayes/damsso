@@ -3,6 +3,8 @@
 import damsso.models
 from django.db import migrations, models
 
+from ._swap import tenant_ops
+
 
 class Migration(migrations.Migration):
 
@@ -24,14 +26,16 @@ class Migration(migrations.Migration):
                 serialize=False,
             ),
         ),
-        migrations.AlterField(
-            model_name="tenant",
-            name="id",
-            field=models.UUIDField(
-                default=damsso.models.uuid7,
-                editable=False,
-                primary_key=True,
-                serialize=False,
+        *tenant_ops(
+            migrations.AlterField(
+                model_name="tenant",
+                name="id",
+                field=models.UUIDField(
+                    default=damsso.models.uuid7,
+                    editable=False,
+                    primary_key=True,
+                    serialize=False,
+                ),
             ),
         ),
         migrations.AlterField(

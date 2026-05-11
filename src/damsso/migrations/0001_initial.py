@@ -5,6 +5,8 @@ from django.conf import settings
 from django.db import migrations, models
 import django.db.models.deletion
 
+from ._swap import extra_dependencies, tenant_ops
+
 # Default to the built-in Tenant when the setting is not explicitly configured.
 _TENANT_MODEL = getattr(settings, "DAMSSO_TENANT_MODEL", "damsso.Tenant")
 
@@ -16,71 +18,73 @@ class Migration(migrations.Migration):
     dependencies = [
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
         migrations.swappable_dependency(_TENANT_MODEL),
-        # Ensure Tenant.slug is finalized (varchar 63, PK) before FK columns are created.
-        # Without this, post_migrate RLS signals fire between damsso migrations and block
-        # tenants.0002 from cascading the slug type change through the tenant_id FK columns.
-        ('tenants', '0002_subdomain_slug'),
+        # Host apps may inject additional ordering constraints (e.g. to ensure
+        # their tenant migration finishes before damsso adds FK columns) via
+        # DAMSSO_EXTRA_MIGRATION_DEPENDENCIES["0001_initial"].
+        *extra_dependencies("0001_initial"),
     ]
 
     operations = [
-        # Only created when DAMSSO_TENANT_MODEL == 'damsso.Tenant' (standalone mode).
-        migrations.CreateModel(
-            name="Tenant",
-            fields=[
-                (
-                    "id",
-                    models.UUIDField(
-                        default=uuid.uuid4,
-                        editable=False,
-                        primary_key=True,
-                        serialize=False,
+        # Tenant table only exists in standalone mode (DAMSSO_TENANT_MODEL == 'damsso.Tenant').
+        *tenant_ops(
+            migrations.CreateModel(
+                name="Tenant",
+                fields=[
+                    (
+                        "id",
+                        models.UUIDField(
+                            default=uuid.uuid4,
+                            editable=False,
+                            primary_key=True,
+                            serialize=False,
+                        ),
                     ),
-                ),
-                ("name", models.CharField(max_length=255, unique=True)),
-                ("slug", models.SlugField(max_length=255, unique=True)),
-                ("is_active", models.BooleanField(default=True)),
-                ("created_at", models.DateTimeField(auto_now_add=True)),
-                ("updated_at", models.DateTimeField(auto_now=True)),
-                (
-                    "sso_enabled",
-                    models.BooleanField(
-                        default=False,
-                        help_text="Enable SSO authentication for this tenant's users",
+                    ("name", models.CharField(max_length=255, unique=True)),
+                    ("slug", models.SlugField(max_length=255, unique=True)),
+                    ("is_active", models.BooleanField(default=True)),
+                    ("created_at", models.DateTimeField(auto_now_add=True)),
+                    ("updated_at", models.DateTimeField(auto_now=True)),
+                    (
+                        "sso_enabled",
+                        models.BooleanField(
+                            default=False,
+                            help_text="Enable SSO authentication for this tenant's users",
+                        ),
                     ),
-                ),
-                (
-                    "sso_enforced",
-                    models.BooleanField(
-                        default=False,
-                        help_text="Enforce SSO authentication (disable password login)",
+                    (
+                        "sso_enforced",
+                        models.BooleanField(
+                            default=False,
+                            help_text="Enforce SSO authentication (disable password login)",
+                        ),
                     ),
-                ),
-                (
-                    "domain",
-                    models.CharField(
-                        blank=True,
-                        help_text="Primary domain for this tenant",
-                        max_length=255,
-                        null=True,
+                    (
+                        "domain",
+                        models.CharField(
+                            blank=True,
+                            help_text="Primary domain for this tenant",
+                            max_length=255,
+                            null=True,
+                        ),
                     ),
-                ),
-                ("metadata", models.JSONField(blank=True, default=dict)),
-                (
-                    "signup_token",
-                    models.CharField(
-                        blank=True,
-                        max_length=64,
-                        null=True,
-                        unique=True,
+                    ("metadata", models.JSONField(blank=True, default=dict)),
+                    (
+                        "signup_token",
+                        models.CharField(
+                            blank=True,
+                            max_length=64,
+                            null=True,
+                            unique=True,
+                        ),
                     ),
-                ),
-            ],
-            options={
-                "verbose_name": "Tenant",
-                "verbose_name_plural": "Tenants",
-                "ordering": ["name"],
-                "swappable": "DAMSSO_TENANT_MODEL",
-            },
+                ],
+                options={
+                    "verbose_name": "Tenant",
+                    "verbose_name_plural": "Tenants",
+                    "ordering": ["name"],
+                    "swappable": "DAMSSO_TENANT_MODEL",
+                },
+            ),
         ),
         migrations.CreateModel(
             name="SSOProvider",

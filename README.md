@@ -218,6 +218,7 @@ just docs-publish
 ```
 
 - **[Quick Start Guide](docs/quickstart.md)** - Get up and running in 5 minutes
+- **[Host-App Integration Guide](docs/host-app-integration.md)** - Drop damsso into an existing Django project with its own tenant model, RLS, invitations, and adapters
 - **[Usage Guide](docs/usage.md)** - How to use the package (creating tenants, configuring SSO, inviting users)
 - **[Configuration Guide](docs/configuration.md)** - All configuration options
 - **[Models Reference](docs/models.md)** - Data models and their fields

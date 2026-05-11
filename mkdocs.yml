@@ -60,6 +60,7 @@ nav:
       - Quick Start: quickstart.md
   - Guides:
       - Usage Guide: usage.md
+      - Host-App Integration: host-app-integration.md
       - Configuration: configuration.md
       - Email Configuration: email-configuration.md
       - Admin Guide: admin-guide.md
