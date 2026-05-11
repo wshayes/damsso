@@ -1,6 +1,6 @@
 [project]
 name = "damsso"
-version = "0.1.0"
+version = "0.3.0"
 description = "DAMSSO (Django Allauth Multitenant SSO) - Django-allauth extension providing dynamic multi-tenant SSO support with OIDC and SAML"
 readme = "README.md"
 license = { text = "MIT" }
