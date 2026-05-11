@@ -116,6 +116,72 @@ class TestMultiTenantAccountAdapter:
         assert TenantUser.objects.filter(user=saved_user, tenant=invitation.tenant).exists()
 
 
+class TestPreAuthenticateAuthMethod:
+    """``pre_authenticate`` honors per-membership ``auth_method``."""
+
+    def _request(self):
+        factory = RequestFactory()
+        request = factory.post("/")
+        middleware = SessionMiddleware(lambda x: None)
+        middleware.process_request(request)
+        request.session.save()
+        setattr(request, "_messages", FallbackStorage(request))
+        return request
+
+    def test_blocks_password_when_membership_is_sso(self, user, tenant):
+        """SSO-routed memberships in SSO-enforced tenants block password auth."""
+        tenant.sso_enabled = True
+        tenant.sso_enforced = True
+        tenant.save()
+        TenantUser.objects.create(
+            user=user, tenant=tenant, role="member", auth_method="sso"
+        )
+
+        adapter = MultiTenantAccountAdapter()
+        request = self._request()
+
+        result = adapter.pre_authenticate(request, email=user.email)
+
+        assert result is None, "pre_authenticate must short-circuit for SSO memberships"
+        assert request.session.get("sso_email") == user.email
+        assert request.session.get("sso_tenant_id") == str(tenant.id)
+
+    def test_allows_password_when_membership_is_local(self, user, tenant):
+        """Local-auth memberships bypass tenant-wide SSO enforcement."""
+        tenant.sso_enabled = True
+        tenant.sso_enforced = True
+        tenant.save()
+        TenantUser.objects.create(
+            user=user, tenant=tenant, role="member", auth_method="local"
+        )
+
+        adapter = MultiTenantAccountAdapter()
+        request = self._request()
+
+        # Should not short-circuit — falls through to super().pre_authenticate,
+        # which performs allauth's normal flow (no exception expected).
+        adapter.pre_authenticate(request, email=user.email)
+
+        assert "sso_email" not in request.session
+        assert "sso_tenant_id" not in request.session
+
+    def test_allows_password_when_tenant_not_enforced(self, user, tenant):
+        """Even SSO-routed memberships allow password auth when the tenant doesn't enforce SSO."""
+        tenant.sso_enabled = True
+        tenant.sso_enforced = False
+        tenant.save()
+        TenantUser.objects.create(
+            user=user, tenant=tenant, role="member", auth_method="sso"
+        )
+
+        adapter = MultiTenantAccountAdapter()
+        request = self._request()
+
+        adapter.pre_authenticate(request, email=user.email)
+
+        assert "sso_email" not in request.session
+
+
 class TestMultiTenantSocialAccountAdapter:
     """Tests for MultiTenantSocialAccountAdapter."""
 

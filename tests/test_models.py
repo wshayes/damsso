@@ -291,8 +291,53 @@ class TestTenantInvitation:
         assert tenant_user.user == user
         assert tenant_user.tenant == invitation.tenant
         assert tenant_user.role == invitation.role
+        # New memberships default to SSO routing
+        assert tenant_user.auth_method == TenantUser.AUTH_METHOD_SSO
         assert invitation.status == "accepted"
         assert invitation.accepted_at is not None
+
+    def test_accept_local_invitation_marks_membership_local(self, tenant, user):
+        """Accepting a local-auth invitation creates a TenantUser with auth_method='local'."""
+        invitation = TenantInvitation.objects.create(
+            tenant=tenant,
+            email="contractor@example.com",
+            role="member",
+            auth_method=TenantUser.AUTH_METHOD_LOCAL,
+            invited_by=user,
+            status="pending",
+        )
+        contractor = User.objects.create_user(
+            username="contractor@example.com",
+            email="contractor@example.com",
+            password="pass123",
+        )
+
+        tenant_user = invitation.accept(contractor)
+
+        assert tenant_user.auth_method == TenantUser.AUTH_METHOD_LOCAL
+
+    def test_accept_invitation_flips_existing_membership_auth_method(self, tenant, user):
+        """A new invitation with a different auth_method updates an existing membership."""
+        target = User.objects.create_user(
+            username="member@example.com", email="member@example.com", password="pass123"
+        )
+        TenantUser.objects.create(
+            user=target, tenant=tenant, role="member", auth_method=TenantUser.AUTH_METHOD_SSO
+        )
+
+        invitation = TenantInvitation.objects.create(
+            tenant=tenant,
+            email="member@example.com",
+            role="member",
+            auth_method=TenantUser.AUTH_METHOD_LOCAL,
+            invited_by=user,
+            status="pending",
+        )
+
+        invitation.accept(target)
+
+        membership = TenantUser.objects.get(user=target, tenant=tenant)
+        assert membership.auth_method == TenantUser.AUTH_METHOD_LOCAL
 
     def test_accept_invitation_reactivates_inactive_user(self, invitation, user, tenant):
         """Test accepting invitation reactivates inactive tenant user."""

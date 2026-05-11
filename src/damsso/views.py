@@ -74,17 +74,30 @@ def tenant_login(request, tenant_slug):
     """
     Tenant-specific login page.
 
-    Handles three scenarios:
+    Handles four scenarios:
     1. No SSO: Show email/password login form
     2. SSO Optional: Show both SSO and email/password options
-    3. SSO Enforced: Redirect directly to SSO login
+    3. SSO Enforced, no local-auth memberships: Redirect directly to SSO login
+    4. SSO Enforced, at least one local-auth membership: Show both, but
+       reject password submissions whose own membership is SSO-routed.
+
+    The per-membership ``auth_method`` field decides on a per-user basis
+    whether password auth is allowed when the tenant otherwise enforces SSO.
     """
     tenant = _get_tenant_or_404(slug=tenant_slug, is_active=True)
     sso_provider = tenant.get_active_sso_provider()
 
-    # Scenario 3: SSO Enforced - redirect directly to SSO
+    # Auto-redirect to SSO when the tenant enforces SSO AND nobody has opted
+    # out via auth_method='local'. The check is cheap (single existence query)
+    # and preserves the prior UX for tenants without any local-auth users.
     if tenant.sso_enforced and tenant.sso_enabled and sso_provider:
-        return redirect("damsso:sso_login", tenant_slug=tenant_slug)
+        has_local_members = TenantUser.objects.filter(
+            tenant=tenant,
+            is_active=True,
+            auth_method=TenantUser.AUTH_METHOD_LOCAL,
+        ).exists()
+        if not has_local_members:
+            return redirect("damsso:sso_login", tenant_slug=tenant_slug)
 
     # Handle form submission (email/password login)
     if request.method == "POST":
@@ -102,6 +115,20 @@ def tenant_login(request, tenant_slug):
                 # Check if user is a member of this tenant
                 try:
                     tenant_user = TenantUser.objects.get(user=user, tenant=tenant, is_active=True)
+
+                    # Per-membership SSO enforcement: if this membership is SSO-routed
+                    # and the tenant enforces SSO, refuse password login.
+                    if (
+                        tenant.sso_enforced
+                        and tenant.sso_enabled
+                        and sso_provider
+                        and tenant_user.auth_method == TenantUser.AUTH_METHOD_SSO
+                    ):
+                        messages.warning(
+                            request,
+                            _("Your account is configured to use Single Sign-On. Please use the SSO option."),
+                        )
+                        return redirect("damsso:sso_login", tenant_slug=tenant_slug)
 
                     # Log the user in
                     login(request, user)
@@ -131,16 +158,25 @@ def tenant_login(request, tenant_slug):
             else:
                 messages.error(request, _("Invalid email or password."))
 
-    # Determine which login options to show
+    # Determine which login options to show.
+    # Password is shown when SSO is not enforced OR when there exists at least
+    # one local-auth membership on this tenant.
     show_sso = tenant.sso_enabled and sso_provider and sso_provider.is_active
-    show_password = not tenant.sso_enforced
+    if tenant.sso_enforced:
+        show_password = TenantUser.objects.filter(
+            tenant=tenant,
+            is_active=True,
+            auth_method=TenantUser.AUTH_METHOD_LOCAL,
+        ).exists()
+    else:
+        show_password = True
 
     context = {
         "tenant": tenant,
         "sso_provider": sso_provider,
         "show_sso": show_sso,
         "show_password": show_password,
-        "sso_only": tenant.sso_enforced and show_sso,
+        "sso_only": tenant.sso_enforced and show_sso and not show_password,
     }
 
     return render(request, "damsso/tenant_login.html", context)
@@ -1051,6 +1087,14 @@ def _process_sso_user(request, sso_provider, userinfo):
         tenant=sso_provider.tenant,
         defaults={"role": "member", "external_id": str(external_id) if external_id else None},
     )
+
+    # Refuse SSO for memberships that opted out (auth_method='local').
+    # New memberships default to 'sso', so this only fires for existing local-auth users.
+    if not created and tenant_user.auth_method == TenantUser.AUTH_METHOD_LOCAL:
+        raise ValueError(
+            "This account is configured to sign in with a password, not SSO. "
+            "Please use the email/password login for this organization."
+        )
 
     if not created:
         if not tenant_user.is_active:

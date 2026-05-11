@@ -79,22 +79,28 @@ class MultiTenantAccountAdapter(DefaultAccountAdapter):
     def pre_authenticate(self, request, **credentials):
         """
         Check if SSO is required for this user's tenant before password authentication.
+
+        Memberships with ``auth_method='local'`` are exempt — they're the
+        per-membership escape hatch for users whose email domain isn't
+        federated by the tenant's IdP (e.g. contractors, break-glass accounts).
         """
         # Only use email for authentication
         email = credentials.get("email")
 
         if email:
-            # Check if user belongs to a tenant with enforced SSO
+            # Check if user belongs to a tenant with enforced SSO,
+            # but only when this specific membership is SSO-routed.
             tenant_user = TenantUser.objects.filter(
                 user__email=email,
                 is_active=True,
+                auth_method=TenantUser.AUTH_METHOD_SSO,
                 tenant__sso_enabled=True,
                 tenant__sso_enforced=True,
                 tenant__is_active=True,
             ).first()
 
             if tenant_user:
-                # SSO is enforced, redirect to SSO login
+                # SSO is enforced for this membership, redirect to SSO login
                 messages.warning(request, _("Your organization requires Single Sign-On. Please use the SSO login."))
                 # Store email for SSO flow
                 request.session["sso_email"] = email

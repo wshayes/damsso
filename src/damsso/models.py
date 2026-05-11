@@ -204,6 +204,13 @@ class TenantUser(RLSModel):  # type: ignore[misc]
         ("owner", _("Owner")),
     ]
 
+    AUTH_METHOD_SSO = "sso"
+    AUTH_METHOD_LOCAL = "local"
+    AUTH_METHOD_CHOICES = [
+        (AUTH_METHOD_SSO, _("Tenant SSO")),
+        (AUTH_METHOD_LOCAL, _("Local password")),
+    ]
+
     id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -218,6 +225,15 @@ class TenantUser(RLSModel):  # type: ignore[misc]
     role = models.CharField(max_length=20, choices=ROLE_CHOICES, default="member")
     is_active = models.BooleanField(default=True)
     joined_at = models.DateTimeField(auto_now_add=True)
+    auth_method = models.CharField(
+        max_length=10,
+        choices=AUTH_METHOD_CHOICES,
+        default=AUTH_METHOD_SSO,
+        help_text=_(
+            "How this membership authenticates: tenant SSO or local password. "
+            "Overrides tenant-level SSO enforcement when set to local."
+        ),
+    )
 
     # External identity from SSO provider
     external_id = models.CharField(
@@ -410,6 +426,15 @@ class TenantInvitation(RLSModel):  # type: ignore[misc]
     )
     email = models.EmailField()
     role = models.CharField(max_length=20, choices=TenantUser.ROLE_CHOICES, default="member")
+    auth_method = models.CharField(
+        max_length=10,
+        choices=TenantUser.AUTH_METHOD_CHOICES,
+        default=TenantUser.AUTH_METHOD_SSO,
+        help_text=_(
+            "Authentication method to apply to the TenantUser when this "
+            "invitation is accepted."
+        ),
+    )
     invited_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
@@ -447,11 +472,18 @@ class TenantInvitation(RLSModel):  # type: ignore[misc]
         tenant_user, created = TenantUser.objects.get_or_create(
             user=user,
             tenant=self.tenant,
-            defaults={"role": self.role},
+            defaults={"role": self.role, "auth_method": self.auth_method},
         )
-        if not created and not tenant_user.is_active:
-            tenant_user.is_active = True
-            tenant_user.save()
+        if not created:
+            dirty = False
+            if not tenant_user.is_active:
+                tenant_user.is_active = True
+                dirty = True
+            if tenant_user.auth_method != self.auth_method:
+                tenant_user.auth_method = self.auth_method
+                dirty = True
+            if dirty:
+                tenant_user.save()
 
         self.status = "accepted"
         self.accepted_at = timezone.now()

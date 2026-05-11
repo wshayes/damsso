@@ -168,13 +168,20 @@ class TenantInvitationForm(forms.ModelForm):
     """
     class Meta:
         model = TenantInvitation
-        fields = ['email', 'role']
+        fields = ['email', 'role', 'auth_method']
         widgets = {
             'email': forms.EmailInput(attrs={
                 'class': 'form-control',
                 'placeholder': 'user@example.com'
             }),
             'role': forms.Select(attrs={'class': 'form-control'}),
+            'auth_method': forms.Select(attrs={'class': 'form-control'}),
+        }
+        help_texts = {
+            'auth_method': _(
+                "Pick 'Local password' for users whose email domain is not "
+                "served by this tenant's identity provider."
+            ),
         }
 
     def __init__(self, *args, **kwargs):

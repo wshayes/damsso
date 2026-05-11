@@ -126,7 +126,8 @@ class TestTenantInvitationForm:
         """Test form with valid data."""
         form_data = {
             'email': 'newuser@example.com',
-            'role': 'member'
+            'role': 'member',
+            'auth_method': 'sso',
         }
         form = TenantInvitationForm(data=form_data, tenant=tenant)
         assert form.is_valid()
@@ -135,7 +136,8 @@ class TestTenantInvitationForm:
         """Test form rejects email of existing tenant member."""
         form_data = {
             'email': user.email,
-            'role': 'member'
+            'role': 'member',
+            'auth_method': 'sso',
         }
         form = TenantInvitationForm(data=form_data, tenant=tenant)
         assert not form.is_valid()
@@ -146,7 +148,8 @@ class TestTenantInvitationForm:
         """Test form rejects email with pending invitation."""
         form_data = {
             'email': invitation.email,
-            'role': 'member'
+            'role': 'member',
+            'auth_method': 'sso',
         }
         form = TenantInvitationForm(data=form_data, tenant=tenant)
         assert not form.is_valid()
@@ -157,7 +160,8 @@ class TestTenantInvitationForm:
         """Test form allows email for non-existing user."""
         form_data = {
             'email': 'newuser@example.com',
-            'role': 'admin'
+            'role': 'admin',
+            'auth_method': 'sso',
         }
         form = TenantInvitationForm(data=form_data, tenant=tenant)
         assert form.is_valid()
@@ -166,8 +170,31 @@ class TestTenantInvitationForm:
         """Test form rejects invalid email."""
         form_data = {
             'email': 'not-an-email',
-            'role': 'member'
+            'role': 'member',
+            'auth_method': 'sso',
         }
         form = TenantInvitationForm(data=form_data, tenant=tenant)
         assert not form.is_valid()
         assert 'email' in form.errors
+
+    def test_form_accepts_local_auth_method(self, tenant):
+        """Local-auth invitations bypass tenant-wide SSO enforcement."""
+        form_data = {
+            'email': 'contractor@example.com',
+            'role': 'member',
+            'auth_method': 'local',
+        }
+        form = TenantInvitationForm(data=form_data, tenant=tenant)
+        assert form.is_valid()
+        assert form.cleaned_data['auth_method'] == 'local'
+
+    def test_form_rejects_unknown_auth_method(self, tenant):
+        """Unknown auth_method values are rejected by the choice validator."""
+        form_data = {
+            'email': 'newuser@example.com',
+            'role': 'member',
+            'auth_method': 'bogus',
+        }
+        form = TenantInvitationForm(data=form_data, tenant=tenant)
+        assert not form.is_valid()
+        assert 'auth_method' in form.errors
