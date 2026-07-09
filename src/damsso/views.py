@@ -1067,8 +1067,11 @@ def _process_sso_user(request, sso_provider, userinfo):
         },
     )
 
-    # Ensure username is set to email if username field exists (for Django's default User model)
-    if hasattr(user, "username") and user.username != email:
+    # Ensure username is set to email if username field exists (for Django's default User model).
+    # Check concrete_fields, not hasattr: models that drop the field via `username = None`
+    # still return True for hasattr, then save(update_fields=["username"]) raises FieldDoesNotExist.
+    has_username_field = any(f.name == "username" for f in user._meta.concrete_fields)
+    if has_username_field and user.username != email:
         user.username = email
         user.save(update_fields=["username"])
 
