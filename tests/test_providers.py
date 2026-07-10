@@ -89,6 +89,34 @@ class TestOIDCProviderClient:
         assert 'message' in result
 
 
+class TestOIDCReauth:
+    """Signing-time step-up: reauth forces a fresh IdP prompt."""
+
+    def _auth_params(self, oidc_provider, **kwargs):
+        from urllib.parse import parse_qs, urlparse
+
+        client = OIDCProviderClient(oidc_provider)
+        request = RequestFactory().get("/sso/login/acme/")
+        request.session = {}
+        with patch.object(
+            OIDCProviderClient,
+            "_issuer_metadata",
+            return_value={"authorization_endpoint": "https://idp.example.com/authorize"},
+        ):
+            url, _ = client.get_authorization_url(request, "https://sp/cb", **kwargs)
+        return parse_qs(urlparse(url).query)
+
+    def test_reauth_adds_prompt_login_and_max_age(self, oidc_provider):
+        params = self._auth_params(oidc_provider, reauth=True)
+        assert params["prompt"] == ["login"]
+        assert params["max_age"] == ["0"]
+
+    def test_default_has_no_prompt(self, oidc_provider):
+        params = self._auth_params(oidc_provider)
+        assert "prompt" not in params
+        assert "max_age" not in params
+
+
 class TestSAMLProviderClient:
     """Tests for SAMLProviderClient."""
 

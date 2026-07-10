@@ -2,6 +2,9 @@
 Views for multi-tenant SSO functionality.
 """
 
+import logging
+import time
+
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth import authenticate, get_user_model, login, logout
@@ -32,6 +35,12 @@ from .relay_state import safe_saml_relay_path
 from .providers import OIDCProviderClient, SAMLProviderClient, get_provider_client
 
 User = get_user_model()
+
+logger = logging.getLogger(__name__)
+
+# Clock-skew tolerance when checking IdP-asserted re-auth freshness (auth_time /
+# SAML assertion issue instant) against when we initiated the step-up.
+REAUTH_CLOCK_SKEW_SECONDS = 60
 
 
 def _run_sso_user_policy(request, tenant, email, userinfo):
@@ -228,17 +237,25 @@ def sso_login(request, tenant_slug):
     slug = getattr(tenant, "slug", None)
     request.session["sso_tenant_slug"] = slug if slug is not None else str(tenant.pk)
 
+    # Optional post-login redirect (validated same-origin relative path only) and
+    # signing-time re-auth flag. Both survive the IdP round-trip via the session.
+    request.session["sso_next"] = safe_saml_relay_path(request.GET.get("next"))
+    reauth = request.GET.get("reauth") in ("1", "true", "True", "yes")
+    request.session["sso_reauth"] = reauth
+    if reauth:
+        request.session["sso_reauth_at"] = time.time()
+
     # Route to appropriate SSO flow
     if sso_provider.protocol == "oidc":
-        return _initiate_oidc_login(request, sso_provider)
+        return _initiate_oidc_login(request, sso_provider, reauth=reauth)
     elif sso_provider.protocol == "saml":
-        return _initiate_saml_login(request, sso_provider)
+        return _initiate_saml_login(request, sso_provider, reauth=reauth)
     else:
         messages.error(request, _("Unsupported SSO protocol."))
         return redirect("account_login")
 
 
-def _initiate_oidc_login(request, sso_provider):
+def _initiate_oidc_login(request, sso_provider, reauth=False):
     """Initiate OIDC authentication flow."""
     try:
         client = OIDCProviderClient(sso_provider)
@@ -246,7 +263,9 @@ def _initiate_oidc_login(request, sso_provider):
             reverse("damsso:oidc_callback", args=[sso_provider.tenant.slug])
         )
 
-        authorization_url, state = client.get_authorization_url(request, redirect_uri)
+        authorization_url, state = client.get_authorization_url(
+            request, redirect_uri, reauth=reauth
+        )
 
         # Store provider ID in session (state is already stored by OIDCProviderClient)
         request.session["oidc_provider_id"] = str(sso_provider.id)
@@ -267,7 +286,7 @@ def _initiate_oidc_login(request, sso_provider):
         return redirect("account_login")
 
 
-def _initiate_saml_login(request, sso_provider):
+def _initiate_saml_login(request, sso_provider, reauth=False):
     """Initiate SAML authentication flow."""
     try:
         client = SAMLProviderClient(sso_provider)
@@ -280,8 +299,11 @@ def _initiate_saml_login(request, sso_provider):
         # Store provider ID in session
         request.session["saml_provider_id"] = str(sso_provider.id)
 
-        # Redirect to IdP
-        return redirect(auth.login())
+        # force_authn emits ForceAuthn="true" so the IdP re-authenticates even with
+        # an existing session (signing-time step-up). return_to carries the post-login
+        # redirect as RelayState (validated same-origin path).
+        return_to = request.session.get("sso_next") or None
+        return redirect(auth.login(return_to=return_to, force_authn=reauth))
 
     except Exception as e:
         messages.error(request, _("Failed to initiate SAML login: {error}").format(error=str(e)))
@@ -321,6 +343,30 @@ def oidc_callback(request, tenant_slug):
         # Exchange code for token
         token = client.fetch_token(request, redirect_uri)
 
+        # Signing-time step-up: prove a fresh credential prompt actually happened by
+        # verifying the ID token's auth_time (prompt=login + max_age=0 were requested).
+        reauth = request.session.pop("sso_reauth", False)
+        reauth_at = request.session.pop("sso_reauth_at", None)
+        if reauth:
+            try:
+                claims = client.verified_id_token_claims(token)
+                auth_time = claims.get("auth_time")
+            except Exception:
+                auth_time = None
+            if auth_time is None or (
+                reauth_at is not None
+                and float(auth_time) < float(reauth_at) - REAUTH_CLOCK_SKEW_SECONDS
+            ):
+                logger.warning("OIDC step-up re-auth rejected: auth_time=%r not fresh", auth_time)
+                messages.error(
+                    request,
+                    _(
+                        "Re-authentication failed: the identity provider did not "
+                        "confirm a fresh login."
+                    ),
+                )
+                return redirect("account_login")
+
         # Get user info
         userinfo = client.get_userinfo(token)
         actual_email = userinfo.get("email")
@@ -343,7 +389,8 @@ def oidc_callback(request, tenant_slug):
         if "oidc_provider_id" in request.session:
             del request.session["oidc_provider_id"]
 
-        return redirect(settings.LOGIN_REDIRECT_URL)
+        sso_next = safe_saml_relay_path(request.session.pop("sso_next", None))
+        return redirect(sso_next or settings.LOGIN_REDIRECT_URL)
 
     except Exception as e:
         # Enhanced error message with debugging info
@@ -410,6 +457,29 @@ def saml_acs(request, tenant_slug):
         if not auth.is_authenticated():
             messages.error(request, _("SAML authentication failed."))
             return redirect("account_login")
+
+        # Signing-time step-up: ForceAuthn was requested; confirm the assertion is
+        # freshly issued (SAML analogue of OIDC auth_time).
+        reauth = request.session.pop("sso_reauth", False)
+        reauth_at = request.session.pop("sso_reauth_at", None)
+        if reauth:
+            issued = auth.get_last_assertion_issue_instant()
+            if issued is None or (
+                reauth_at is not None
+                and float(issued) < float(reauth_at) - REAUTH_CLOCK_SKEW_SECONDS
+            ):
+                logger.warning(
+                    "SAML step-up re-auth rejected: assertion issue instant=%r not fresh",
+                    issued,
+                )
+                messages.error(
+                    request,
+                    _(
+                        "Re-authentication failed: the identity provider did not "
+                        "confirm a fresh login."
+                    ),
+                )
+                return redirect("account_login")
 
         # Get user attributes
         attributes = auth.get_attributes()

@@ -94,13 +94,17 @@ class OIDCProviderClient:
         url = f"{self.provider.oidc_issuer}/.well-known/openid-configuration"
         return _requests_get_json(url)
 
-    def get_authorization_url(self, request, redirect_uri):
+    def get_authorization_url(self, request, redirect_uri, *, reauth=False):
         """
         Get the authorization URL for starting OIDC flow.
 
         Args:
             request: Django request object
             redirect_uri: Callback URL after authentication
+            reauth: When True, force a fresh credential prompt at the IdP
+                (``prompt=login`` + ``max_age=0``, so the ID token carries a
+                fresh ``auth_time`` the caller can verify). Used for
+                signing-time step-up re-authentication.
 
         Returns:
             tuple: (authorization_url, state)
@@ -132,6 +136,12 @@ class OIDCProviderClient:
             "state": state,
             "nonce": nonce,
         }
+
+        # Force a fresh IdP login (signing-time re-auth). max_age=0 obliges the
+        # IdP to re-authenticate and to include a fresh auth_time in the ID token.
+        if reauth:
+            params["prompt"] = "login"
+            params["max_age"] = 0
 
         # Get authorization endpoint
         if self.provider.oidc_issuer:
@@ -323,6 +333,22 @@ class OIDCProviderClient:
         nonce = token.get("_damsso_oidc_nonce")
         userinfo = self._decode_id_token_verified(id_token, nonce, metadata)
         return userinfo
+
+    def verified_id_token_claims(self, token):
+        """
+        Verify and return the ID token claims (incl. ``auth_time``).
+
+        Unlike ``get_userinfo`` (which prefers the userinfo endpoint), this always
+        decodes the ID token, because ``auth_time`` is an ID-token claim not
+        returned by the userinfo endpoint. Used to prove a fresh ``prompt=login``
+        actually happened for signing-time re-auth.
+        """
+        id_token = token.get("id_token")
+        if not id_token:
+            raise ValueError("OIDC provider returned no id_token; cannot verify auth_time.")
+        metadata = self._issuer_metadata() if self.provider.oidc_issuer else None
+        nonce = token.get("_damsso_oidc_nonce")
+        return self._decode_id_token_verified(id_token, nonce, metadata)
 
     def test_connection(self):
         """
