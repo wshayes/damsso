@@ -106,8 +106,8 @@ class TestOIDCReauth:
             url, _ = client.get_authorization_url(request, "https://sp/cb", **kwargs)
         return parse_qs(urlparse(url).query)
 
-    def test_reauth_adds_prompt_login_and_max_age(self, oidc_provider):
-        params = self._auth_params(oidc_provider, reauth=True)
+    def test_prompt_login_forwarded_with_max_age(self, oidc_provider):
+        params = self._auth_params(oidc_provider, prompt="login")
         assert params["prompt"] == ["login"]
         assert params["max_age"] == ["0"]
 

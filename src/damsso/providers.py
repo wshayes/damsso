@@ -94,17 +94,17 @@ class OIDCProviderClient:
         url = f"{self.provider.oidc_issuer}/.well-known/openid-configuration"
         return _requests_get_json(url)
 
-    def get_authorization_url(self, request, redirect_uri, *, reauth=False):
+    def get_authorization_url(self, request, redirect_uri, *, prompt=""):
         """
         Get the authorization URL for starting OIDC flow.
 
         Args:
             request: Django request object
             redirect_uri: Callback URL after authentication
-            reauth: When True, force a fresh credential prompt at the IdP
-                (``prompt=login`` + ``max_age=0``, so the ID token carries a
-                fresh ``auth_time`` the caller can verify). Used for
-                signing-time step-up re-authentication.
+            prompt: OIDC ``prompt`` value to forward to the IdP. ``"login"``
+                forces a fresh credential prompt (adds ``max_age=0`` so the ID
+                token carries a fresh ``auth_time`` the caller can verify) —
+                used for signing-time step-up re-authentication.
 
         Returns:
             tuple: (authorization_url, state)
@@ -137,11 +137,13 @@ class OIDCProviderClient:
             "nonce": nonce,
         }
 
-        # Force a fresh IdP login (signing-time re-auth). max_age=0 obliges the
-        # IdP to re-authenticate and to include a fresh auth_time in the ID token.
-        if reauth:
-            params["prompt"] = "login"
-            params["max_age"] = 0
+        # Forward the requested prompt. prompt=login forces a fresh IdP login;
+        # max_age=0 obliges the IdP to re-authenticate and to include a fresh
+        # auth_time in the ID token (verified on callback for signing step-up).
+        if prompt:
+            params["prompt"] = prompt
+            if "login" in prompt:
+                params["max_age"] = 0
 
         # Get authorization endpoint
         if self.provider.oidc_issuer:

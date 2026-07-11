@@ -237,17 +237,20 @@ def sso_login(request, tenant_slug):
     slug = getattr(tenant, "slug", None)
     request.session["sso_tenant_slug"] = slug if slug is not None else str(tenant.pk)
 
-    # Optional post-login redirect (validated same-origin relative path only) and
-    # signing-time re-auth flag. Both survive the IdP round-trip via the session.
-    request.session["sso_next"] = safe_saml_relay_path(request.GET.get("next"))
-    reauth = request.GET.get("reauth") in ("1", "true", "True", "yes")
+    # Forced re-authentication for signing-time step-up: honour a caller-supplied
+    # ``prompt=login`` (standard OIDC) — forward it to the IdP so it re-prompts for
+    # credentials even with an existing session, and verify a fresh login on return.
+    # Post-login redirect (``next``) is intentionally left to the relying party.
+    prompt = request.GET.get("prompt") or ""
+    reauth = "login" in prompt or request.GET.get("reauth") in ("1", "true", "True", "yes")
     request.session["sso_reauth"] = reauth
     if reauth:
         request.session["sso_reauth_at"] = time.time()
 
     # Route to appropriate SSO flow
     if sso_provider.protocol == "oidc":
-        return _initiate_oidc_login(request, sso_provider, reauth=reauth)
+        oidc_prompt = prompt or ("login" if reauth else "")
+        return _initiate_oidc_login(request, sso_provider, prompt=oidc_prompt)
     elif sso_provider.protocol == "saml":
         return _initiate_saml_login(request, sso_provider, reauth=reauth)
     else:
@@ -255,7 +258,7 @@ def sso_login(request, tenant_slug):
         return redirect("account_login")
 
 
-def _initiate_oidc_login(request, sso_provider, reauth=False):
+def _initiate_oidc_login(request, sso_provider, prompt=""):
     """Initiate OIDC authentication flow."""
     try:
         client = OIDCProviderClient(sso_provider)
@@ -264,7 +267,7 @@ def _initiate_oidc_login(request, sso_provider, reauth=False):
         )
 
         authorization_url, state = client.get_authorization_url(
-            request, redirect_uri, reauth=reauth
+            request, redirect_uri, prompt=prompt
         )
 
         # Store provider ID in session (state is already stored by OIDCProviderClient)
@@ -300,10 +303,9 @@ def _initiate_saml_login(request, sso_provider, reauth=False):
         request.session["saml_provider_id"] = str(sso_provider.id)
 
         # force_authn emits ForceAuthn="true" so the IdP re-authenticates even with
-        # an existing session (signing-time step-up). return_to carries the post-login
-        # redirect as RelayState (validated same-origin path).
-        return_to = request.session.get("sso_next") or None
-        return redirect(auth.login(return_to=return_to, force_authn=reauth))
+        # an existing session (signing-time step-up). Post-login redirect is left to
+        # the relying party (as for OIDC), so no return_to/RelayState here.
+        return redirect(auth.login(force_authn=reauth))
 
     except Exception as e:
         messages.error(request, _("Failed to initiate SAML login: {error}").format(error=str(e)))
@@ -389,8 +391,7 @@ def oidc_callback(request, tenant_slug):
         if "oidc_provider_id" in request.session:
             del request.session["oidc_provider_id"]
 
-        sso_next = safe_saml_relay_path(request.session.pop("sso_next", None))
-        return redirect(sso_next or settings.LOGIN_REDIRECT_URL)
+        return redirect(settings.LOGIN_REDIRECT_URL)
 
     except Exception as e:
         # Enhanced error message with debugging info
