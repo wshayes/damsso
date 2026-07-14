@@ -1363,7 +1363,8 @@ def _diagnose_user_sso_login(tenant, sso_provider, email):
             "priority": "high",
             "message": (
                 f"User {email} should be able to login via SSO. "
-                f"Test the login flow at: /tenants/sso/login/{tenant.slug}/"
+                f"Test the login flow at: "
+                f"{reverse('damsso:sso_login', kwargs={'tenant_slug': tenant.slug})}"
             ),
         })
     else:

@@ -9,14 +9,17 @@ from . import views
 app_name = "damsso"
 
 urlpatterns = [
-    # Tenant Authentication (separate from Django accounts)
+    # Tenant Authentication (separate from Django accounts).
+    # ``tenant_login`` is the login *page*; ``sso_login`` below is the *action*
+    # that redirects to the IdP. Hosts typically mount this module under a
+    # prefix (gxpsign uses "sso/"), so these paths carry no "sso/" of their own.
     path("login/<slug:tenant_slug>/", views.tenant_login, name="tenant_login"),
     path("logout/<slug:tenant_slug>/", views.tenant_logout, name="tenant_logout"),
     # SSO Authentication
-    path("sso/login/<slug:tenant_slug>/", views.sso_login, name="sso_login"),
-    path("sso/oidc/callback/<slug:tenant_slug>/", views.oidc_callback, name="oidc_callback"),
-    path("sso/saml/acs/<slug:tenant_slug>/", views.saml_acs, name="saml_acs"),
-    path("sso/saml/metadata/<slug:tenant_slug>/", views.saml_metadata, name="saml_metadata"),
+    path("start/<slug:tenant_slug>/", views.sso_login, name="sso_login"),
+    path("oidc/callback/<slug:tenant_slug>/", views.oidc_callback, name="oidc_callback"),
+    path("saml/acs/<slug:tenant_slug>/", views.saml_acs, name="saml_acs"),
+    path("saml/metadata/<slug:tenant_slug>/", views.saml_metadata, name="saml_metadata"),
     # Tenant Dashboard
     path("tenant/<slug:tenant_slug>/", views.tenant_dashboard, name="tenant_dashboard"),
     # SSO Management
