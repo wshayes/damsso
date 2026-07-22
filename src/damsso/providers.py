@@ -8,16 +8,28 @@ import logging
 from typing import Any
 
 import requests
-from authlib.jose import JsonWebKey, jwt as jose_jwt
 from authlib.integrations.django_client import OAuth
 from django.conf import settings
 from django.contrib.auth import get_user_model
+from joserfc import jwt as jose_jwt
+from joserfc.jwk import KeySet, OctKey
+from joserfc.jwt import JWTClaimsRegistry
 
 from .models import SSOProvider
 from .oidc_utils import oidc_http_timeout
 
 User = get_user_model()
 logger = logging.getLogger(__name__)
+
+#: Asymmetric signature algorithms accepted for JWKS-verified ID tokens. Listing
+#: them explicitly (joserfc requires it) also blocks "none" and HMAC-vs-public-key
+#: algorithm-confusion — an HS* alg can never be verified with a JWKS public key.
+_ASYMMETRIC_ID_TOKEN_ALGS = [
+    "RS256", "RS384", "RS512",
+    "ES256", "ES384", "ES512",
+    "PS256", "PS384", "PS512",
+    "EdDSA",
+]
 
 # Shared OAuth instance for all OIDC providers
 # This ensures session state is maintained across requests
@@ -271,14 +283,7 @@ class OIDCProviderClient:
             secret = self.provider.oidc_client_secret
             if not secret:
                 raise ValueError("Cannot verify HS256 ID token without client_secret.")
-            claims = jose_jwt.decode(
-                id_token,
-                secret,
-                claims_options={
-                    "iss": {"essential": True, "value": expected_iss},
-                    "aud": {"essential": True, "value": client_id},
-                },
-            )
+            token = jose_jwt.decode(id_token, OctKey.import_key(secret), algorithms=["HS256"])
         else:
             if not jwks_uri:
                 raise ValueError(
@@ -286,24 +291,26 @@ class OIDCProviderClient:
                     "or set oidc_jwks_uri on the provider)."
                 )
             jwks = _requests_get_json(jwks_uri)
-            key_set = JsonWebKey.import_key_set(jwks)
-            claims_options: dict[str, dict[str, Any]] = {
-                "iss": {"essential": True, "value": expected_iss},
-                "aud": {"essential": True, "value": client_id},
-            }
-            if nonce:
-                claims_options["nonce"] = {"essential": True, "value": nonce}
+            key_set = KeySet.import_key_set(jwks)
+            token = jose_jwt.decode(id_token, key_set, algorithms=_ASYMMETRIC_ID_TOKEN_ALGS)
 
-            claims = jose_jwt.decode(id_token, key_set, claims_options=claims_options)
+        # ``value`` matches a scalar aud exactly and membership when aud is a
+        # list; ``validate`` also enforces exp/nbf/iat (parity with authlib).
+        claims_options: dict[str, dict[str, Any]] = {
+            "iss": {"essential": True, "value": expected_iss},
+            "aud": {"essential": True, "value": client_id},
+        }
+        if nonce:
+            claims_options["nonce"] = {"essential": True, "value": nonce}
 
         try:
-            claims.validate()
+            JWTClaimsRegistry(**claims_options).validate(token.claims)
         except Exception as exc:
             logger.warning("ID token claims validation failed: %s", exc)
             raise ValueError("ID token validation failed") from exc
 
         # Normalise to plain dict for callers
-        return dict(claims)
+        return dict(token.claims)
 
     def get_userinfo(self, token):
         """

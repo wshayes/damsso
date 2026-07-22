@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.1] - 2026-07-22
+
+### Changed
+- OIDC ID-token verification migrated from the deprecated `authlib.jose` module
+  to `joserfc` (authlib's designated successor), silencing the
+  `AuthlibDeprecationWarning`. Verification semantics are preserved: essential
+  `iss`/`aud`/`nonce` with the same values, and `exp`/`nbf`/`iat` enforcement.
+  Allowed algorithms are now stated explicitly — HS256 only in the
+  client-secret path, asymmetric-only in the JWKS path — which additionally
+  blocks `alg=none` and HMAC-vs-public-key algorithm confusion.
+
+### Added
+- `joserfc>=1.0.0` dependency.
+- Tests for `OIDCProviderClient._decode_id_token_verified` covering valid
+  HS256/RS256 tokens and rejection of bad signatures, wrong audience, wrong
+  nonce, and expired tokens.
+
 ## [0.3.0] - 2026-05-11
 
 ### Added
